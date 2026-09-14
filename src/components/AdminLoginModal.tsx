@@ -8,18 +8,19 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import {
   ShieldAlert,
   Lock,
   User,
   X,
-  Zap,
   Eye,
   EyeOff,
   KeyRound,
 } from 'lucide-react-native';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../../firebase';
 
 interface AdminLoginModalProps {
   visible: boolean;
@@ -36,35 +37,45 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (userVal?: string, passVal?: string) => {
-    const finalUser = (userVal !== undefined ? userVal : usuario).trim().toLowerCase();
-    const finalPass = (passVal !== undefined ? passVal : password).trim();
+  const handleLogin = async () => {
+    const finalUser = usuario.trim();
+    const finalPass = password.trim();
 
-    // Validar credenciales demo (acepta 'admin' / '1234', 'recepcion' / '1234', 'admin@canchaya.pe' / '1234')
-    if (
-      (finalUser === 'admin' && finalPass === '1234') ||
-      (finalUser === 'recepcion' && finalPass === '1234') ||
-      (finalUser === 'admin@canchaya.pe' && finalPass === '1234')
-    ) {
-      setErrorMsg('');
+    if (!finalUser || !finalPass) {
+      setErrorMsg('Por favor ingresa tu correo y contraseña.');
+      return;
+    }
+
+    setLoading(true);
+    setErrorMsg('');
+
+    try {
+      // Autenticación real con Firebase Auth
+      await signInWithEmailAndPassword(auth, finalUser, finalPass);
       setUsuario('');
       setPassword('');
       onSuccessLogin();
-    } else {
-      setErrorMsg('Credenciales inválidas. Usa admin / 1234 o pulsa "Acceso Rápido Demo".');
+    } catch (error: any) {
+      if (
+        error.code === 'auth/invalid-email' ||
+        error.code === 'auth/user-not-found' ||
+        error.code === 'auth/wrong-password' ||
+        error.code === 'auth/invalid-credential'
+      ) {
+        setErrorMsg('Credenciales inválidas. Verifica tu correo y contraseña.');
+      } else {
+        setErrorMsg('Error al iniciar sesión. Inténtalo nuevamente.');
+      }
+    } finally {
+      setLoading(false);
     }
-  };
-
-  const handleDemoLogin = () => {
-    setUsuario('admin');
-    setPassword('1234');
-    setErrorMsg('');
-    handleLogin('admin', '1234');
   };
 
   const handleClose = () => {
     setErrorMsg('');
+    setLoading(false);
     onClose();
   };
 
@@ -80,7 +91,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
             <View style={styles.iconContainer}>
               <KeyRound size={22} color="#3b82f6" />
             </View>
-            <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
+            <TouchableOpacity onPress={handleClose} style={styles.closeBtn} disabled={loading}>
               <X size={20} color="#94a3b8" />
             </TouchableOpacity>
           </View>
@@ -98,10 +109,12 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
               </View>
               <TextInput
                 style={styles.input}
-                placeholder="Usuario o correo (ej: admin)"
+                placeholder="Correo electrónico (ej: admin1@gmail.com)"
                 placeholderTextColor="#64748b"
                 autoCapitalize="none"
+                keyboardType="email-address"
                 value={usuario}
+                editable={!loading}
                 onChangeText={(text) => {
                   setUsuario(text);
                   setErrorMsg('');
@@ -115,10 +128,11 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
               </View>
               <TextInput
                 style={styles.input}
-                placeholder="Contraseña (ej: 1234)"
+                placeholder="Contraseña"
                 placeholderTextColor="#64748b"
                 secureTextEntry={!showPassword}
                 value={password}
+                editable={!loading}
                 onChangeText={(text) => {
                   setPassword(text);
                   setErrorMsg('');
@@ -127,6 +141,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
               <TouchableOpacity
                 onPress={() => setShowPassword(!showPassword)}
                 style={styles.eyeBtn}
+                disabled={loading}
               >
                 {showPassword ? (
                   <EyeOff size={18} color="#94a3b8" />
@@ -144,21 +159,16 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
             )}
 
             {/* Botón Ingresar */}
-            <TouchableOpacity style={styles.loginBtn} onPress={() => handleLogin()}>
-              <Text style={styles.loginBtnText}>Iniciar Sesión</Text>
-            </TouchableOpacity>
-
-            {/* Separador */}
-            <View style={styles.separatorRow}>
-              <View style={styles.separatorLine} />
-              <Text style={styles.separatorText}>O ACCESO RÁPIDO</Text>
-              <View style={styles.separatorLine} />
-            </View>
-
-            {/* Botón Acceder como Demo */}
-            <TouchableOpacity style={styles.demoBtn} onPress={handleDemoLogin}>
-              <Zap size={16} color="#fbbf24" fill="#fbbf24" />
-              <Text style={styles.demoBtnText}>Acceder como Demo (admin / 1234)</Text>
+            <TouchableOpacity
+              style={[styles.loginBtn, loading && styles.loginBtnDisabled]}
+              onPress={handleLogin}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#ffffff" size="small" />
+              ) : (
+                <Text style={styles.loginBtnText}>Iniciar Sesión</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -273,49 +283,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 4,
-    marginBottom: 14,
     shadowColor: '#3b82f6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
   },
+  loginBtnDisabled: {
+    opacity: 0.7,
+  },
   loginBtnText: {
     color: '#ffffff',
     fontSize: 15,
-    fontWeight: '700',
-  },
-  separatorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  separatorLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#1e293b',
-  },
-  separatorText: {
-    color: '#64748b',
-    fontSize: 10,
-    fontWeight: '700',
-    paddingHorizontal: 10,
-    letterSpacing: 0.5,
-  },
-  demoBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(251, 191, 36, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(251, 191, 36, 0.3)',
-    borderRadius: 12,
-    height: 44,
-  },
-  demoBtnText: {
-    color: '#fbbf24',
-    fontSize: 13,
     fontWeight: '700',
   },
 });

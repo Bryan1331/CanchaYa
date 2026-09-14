@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   Modal,
 } from 'react-native';
 import {
@@ -14,43 +13,27 @@ import {
   Clock,
   DollarSign,
   TrendingUp,
-  Trophy,
-  Plus,
   ShieldCheck,
   Search,
   Check,
   X,
   Eye,
 } from 'lucide-react-native';
-import { Reserva, Torneo, EstadoReserva, TipoGrass } from '../types';
+import { Reserva, EstadoReserva } from '../types';
 
 interface AdminDashboardProps {
   reservas: Reserva[];
-  torneos: Torneo[];
   onCambiarEstadoReserva: (reservaId: string, nuevoEstado: EstadoReserva) => void;
-  onCrearTorneo: (nuevoTorneo: Torneo) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   reservas,
-  torneos,
   onCambiarEstadoReserva,
-  onCrearTorneo,
 }) => {
   const [filtroEstado, setFiltroEstado] = useState<'todos' | EstadoReserva>('todos');
   const [busqueda, setBusqueda] = useState('');
-  const [modalTorneoVisible, setModalTorneoVisible] = useState(false);
   const [voucherModalVisible, setVoucherModalVisible] = useState(false);
   const [selectedReservaVoucher, setSelectedReservaVoucher] = useState<Reserva | null>(null);
-
-  // Form nuevo torneo
-  const [tituloTorneo, setTituloTorneo] = useState('');
-  const [formatoTorneo, setFormatoTorneo] = useState('Fútbol 7');
-  const [grassTorneo, setGrassTorneo] = useState<TipoGrass>('sintetico');
-  const [categoriaTorneo, setCategoriaTorneo] = useState('');
-  const [premioTorneo, setPremioTorneo] = useState('');
-  const [inscripcionTorneo, setInscripcionTorneo] = useState('250');
-  const [maxEquiposTorneo, setMaxEquiposTorneo] = useState('16');
 
   // Metricas
   const totalRecaudado = reservas
@@ -65,37 +48,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const matchSearch =
       r.clienteNombre.toLowerCase().includes(busqueda.toLowerCase()) ||
       r.canchaNombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-      (r.codigoOperacion && r.codigoOperacion.toLowerCase().includes(busqueda.toLowerCase()));
+      (r.clienteTelefono && r.clienteTelefono.toLowerCase().includes(busqueda.toLowerCase()));
     return matchEstado && matchSearch;
   });
-
-  const handleCrearNuevoTorneo = () => {
-    if (!tituloTorneo.trim() || !categoriaTorneo.trim() || !premioTorneo.trim()) {
-      Alert.alert('Campos incompletos', 'Por favor llena los campos principales del torneo.');
-      return;
-    }
-
-    const nuevo: Torneo = {
-      id: `torneo-${Date.now()}`,
-      titulo: tituloTorneo.trim(),
-      formato: formatoTorneo,
-      tipoGrass: grassTorneo,
-      categoria: categoriaTorneo.trim(),
-      premio: premioTorneo.trim(),
-      inscripcion: parseFloat(inscripcionTorneo) || 200,
-      fechaInicio: 'Próximo Mes',
-      equiposInscritos: 1,
-      maxEquipos: parseInt(maxEquiposTorneo) || 16,
-      estado: 'abierto',
-    };
-
-    onCrearTorneo(nuevo);
-    setTituloTorneo('');
-    setCategoriaTorneo('');
-    setPremioTorneo('');
-    setModalTorneoVisible(false);
-    Alert.alert('¡Torneo Publicado!', 'El torneo ya está disponible para inscripciones en Cajamarca.');
-  };
 
   const verComprobante = (reserva: Reserva) => {
     setSelectedReservaVoucher(reserva);
@@ -107,14 +62,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
         {/* Header Recepción */}
         <View style={styles.header}>
-          <View>
-            <View style={styles.badgeReception}>
-              <ShieldCheck size={13} color="#10b981" />
-              <Text style={styles.badgeReceptionText}>RECEPCIÓN • CANCHAYA CAJAMARCA</Text>
-            </View>
-            <Text style={styles.headerTitle}>Panel de Control</Text>
-            <Text style={styles.headerSubtitle}>Validación de pagos Yape/Plin y gestión de canchas</Text>
+          <View style={styles.badgeReception}>
+            <ShieldCheck size={13} color="#10b981" />
+            <Text style={styles.badgeReceptionText}>RECEPCIÓN • CANCHAYA CAJAMARCA</Text>
           </View>
+          <Text style={styles.headerTitle}>Panel de Control</Text>
+          <Text style={styles.headerSubtitle}>Gestión y validación de turnos registrados</Text>
         </View>
 
         {/* Métricas Cards */}
@@ -124,7 +77,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <DollarSign size={18} color="#10b981" />
             </View>
             <Text style={styles.kpiValue}>S/ {totalRecaudado}</Text>
-            <Text style={styles.kpiLabel}>Recaudado Hoy</Text>
+            <Text style={styles.kpiLabel}>Total Aprobado</Text>
           </View>
 
           <View style={styles.kpiCard}>
@@ -144,50 +97,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </View>
         </View>
 
-        {/* Gestión de Torneos */}
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeaderRow}>
-            <View style={styles.sectionTitleRow}>
-              <Trophy size={18} color="#f59e0b" />
-              <Text style={styles.sectionTitle}>Torneos en Cajamarca</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.addTorneoBtn}
-              onPress={() => setModalTorneoVisible(true)}
-            >
-              <Plus size={14} color="#0f172a" />
-              <Text style={styles.addTorneoBtnText}>Nuevo Torneo</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.torneosAdminScroll}>
-            {torneos.map((t) => (
-              <View key={t.id} style={styles.adminTorneoCard}>
-                <View style={styles.adminTorneoTop}>
-                  <Text style={styles.adminTorneoTag}>
-                    {t.tipoGrass === 'sintetico' ? '🌱 SINTÉTICO' : '🌾 NATURAL'} • {t.formato}
-                  </Text>
-                  <Text style={styles.adminTorneoEstado}>
-                    {t.estado === 'abierto' ? '🟢 Abierto' : '🟡 En Juego'}
-                  </Text>
-                </View>
-                <Text style={styles.adminTorneoTitle}>{t.titulo}</Text>
-                <Text style={styles.adminTorneoCat}>{t.categoria}</Text>
-                <View style={styles.adminTorneoProgress}>
-                  <Text style={styles.adminTorneoCupos}>
-                    Inscritos: {t.equiposInscritos}/{t.maxEquipos} equipos
-                  </Text>
-                  <Text style={styles.adminTorneoPremio}>{t.premio}</Text>
-                </View>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-
         {/* Lista de Reservas por Validar */}
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Validación de Reservas ({reservasFiltradas.length})</Text>
+            <Text style={styles.sectionTitle}>Reservas ({reservasFiltradas.length})</Text>
           </View>
 
           {/* Buscador */}
@@ -195,7 +108,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <Search size={16} color="#64748b" />
             <TextInput
               style={styles.searchInput}
-              placeholder="Buscar por cliente, cancha o código OP..."
+              placeholder="Buscar por cliente, cancha o celular..."
               placeholderTextColor="#64748b"
               value={busqueda}
               onChangeText={setBusqueda}
@@ -235,7 +148,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {/* Top Bar de la Reserva */}
                   <View style={styles.reservaTop}>
                     <View>
-                      <Text style={styles.reservaId}>{reserva.id} • {reserva.fechaCreacion}</Text>
+                      <Text style={styles.reservaId}>{reserva.id} • {reserva.fechaCreacion || 'Reciente'}</Text>
                       <Text style={styles.clienteName}>{reserva.clienteNombre}</Text>
                       <Text style={styles.clientePhone}>{reserva.clienteTelefono}</Text>
                     </View>
@@ -275,14 +188,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <Text style={styles.horarioDetalleText}>
                       🕒 {reserva.fecha} | {reserva.horario}
                     </Text>
-                    <View style={styles.pagoInfoRow}>
-                      <Text style={styles.pagoMetodoTag}>
-                        Pago: {reserva.metodoPago.toUpperCase()}
-                      </Text>
-                      <Text style={styles.pagoOpTag}>
-                        Cód: {reserva.codigoOperacion || 'N/D'}
-                      </Text>
-                    </View>
                   </View>
 
                   {/* Botones de Acción para Recepción */}
@@ -292,7 +197,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       onPress={() => verComprobante(reserva)}
                     >
                       <Eye size={14} color="#94a3b8" />
-                      <Text style={styles.btnVerVoucherText}>Ver Voucher</Text>
+                      <Text style={styles.btnVerVoucherText}>Ver Ficha</Text>
                     </TouchableOpacity>
 
                     {isPendiente && (
@@ -310,7 +215,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           onPress={() => onCambiarEstadoReserva(reserva.id, 'aprobada')}
                         >
                           <Check size={15} color="#0f172a" />
-                          <Text style={styles.btnAprobarText}>Validar Pago</Text>
+                          <Text style={styles.btnAprobarText}>Validar</Text>
                         </TouchableOpacity>
                       </View>
                     )}
@@ -332,113 +237,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           )}
         </View>
 
-        <View style={{ height: 100 }} />
+        <View style={{ height: 60 }} />
       </ScrollView>
 
-      {/* Modal Crear Torneo */}
-      <Modal visible={modalTorneoVisible} animationType="slide" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Crear Torneo en Cajamarca</Text>
-              <TouchableOpacity onPress={() => setModalTorneoVisible(false)}>
-                <X size={20} color="#94a3b8" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalBody}>
-              <Text style={styles.inputLabel}>Título del Torneo</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Ej: Copa Carnaval Cajamarquino 2026"
-                placeholderTextColor="#64748b"
-                value={tituloTorneo}
-                onChangeText={setTituloTorneo}
-              />
-
-              <Text style={styles.inputLabel}>Tipo de Terreno</Text>
-              <View style={styles.modalDeportesRow}>
-                {(['sintetico', 'natural'] as TipoGrass[]).map((tg) => (
-                  <TouchableOpacity
-                    key={tg}
-                    style={[styles.modalDepBtn, grassTorneo === tg && styles.modalDepBtnActive]}
-                    onPress={() => setGrassTorneo(tg)}
-                  >
-                    <Text style={[styles.modalDepText, grassTorneo === tg && styles.modalDepTextActive]}>
-                      {tg === 'sintetico' ? '🌱 GRASS SINTÉTICO' : '🌾 GRASS NATURAL'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.inputLabel}>Formato de Fútbol</Text>
-              <View style={styles.modalDeportesRow}>
-                {['Fútbol 6', 'Fútbol 7', 'Fútbol 8', 'Fútbol 11'].map((fmt) => (
-                  <TouchableOpacity
-                    key={fmt}
-                    style={[styles.modalDepBtn, formatoTorneo === fmt && styles.modalDepBtnActive]}
-                    onPress={() => setFormatoTorneo(fmt)}
-                  >
-                    <Text style={[styles.modalDepText, formatoTorneo === fmt && styles.modalDepTextActive]}>
-                      {fmt}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.inputLabel}>Categoría</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Ej: Libre Varones / Interbarrios Cajamarca"
-                placeholderTextColor="#64748b"
-                value={categoriaTorneo}
-                onChangeText={setCategoriaTorneo}
-              />
-
-              <Text style={styles.inputLabel}>Premio Total</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Ej: S/ 4,000 + Copa de Campeones"
-                placeholderTextColor="#64748b"
-                value={premioTorneo}
-                onChangeText={setPremioTorneo}
-              />
-
-              <View style={styles.modalInputRow}>
-                <View style={{ flex: 1, marginRight: 8 }}>
-                  <Text style={styles.inputLabel}>Costo Inscripción (S/)</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    keyboardType="numeric"
-                    value={inscripcionTorneo}
-                    onChangeText={setInscripcionTorneo}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputLabel}>Max Equipos</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    keyboardType="numeric"
-                    value={maxEquiposTorneo}
-                    onChangeText={setMaxEquiposTorneo}
-                  />
-                </View>
-              </View>
-
-              <TouchableOpacity style={styles.modalSubmitBtn} onPress={handleCrearNuevoTorneo}>
-                <Text style={styles.modalSubmitBtnText}>Publicar Torneo</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Modal Ver Voucher */}
+      {/* Modal Ver Ficha */}
       <Modal visible={voucherModalVisible} transparent={true} animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.voucherPreviewCard}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Comprobante de Pago</Text>
+              <Text style={styles.modalTitle}>Detalles del Turno</Text>
               <TouchableOpacity onPress={() => setVoucherModalVisible(false)}>
                 <X size={20} color="#94a3b8" />
               </TouchableOpacity>
@@ -449,15 +256,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <Text style={styles.voucherClient}>{selectedReservaVoucher.clienteNombre}</Text>
                   <Text style={styles.voucherAmount}>Monto: S/ {selectedReservaVoucher.monto}.00</Text>
                   <Text style={styles.voucherOp}>
-                    Método: {selectedReservaVoucher.metodoPago.toUpperCase()} • OP: {selectedReservaVoucher.codigoOperacion}
+                    Teléfono: {selectedReservaVoucher.clienteTelefono}
+                  </Text>
+                  <Text style={styles.voucherOp}>
+                    Cancha: {selectedReservaVoucher.canchaNombre} ({selectedReservaVoucher.horario})
                   </Text>
                 </View>
 
                 <View style={styles.voucherSimulatorBox}>
-                  <CheckCircle2 size={40} color="#10b981" />
-                  <Text style={styles.voucherValidText}>Comprobante Digital Recibido</Text>
+                  <CheckCircle2 size={36} color="#10b981" />
+                  <Text style={styles.voucherValidText}>Turno Registrado</Text>
                   <Text style={styles.voucherHashText}>
-                    HASH: {selectedReservaVoucher.id}-YAPE-PLIN-CAJAMARCA
+                    ID: {selectedReservaVoucher.id}
                   </Text>
                 </View>
 
@@ -519,7 +329,7 @@ const styles = StyleSheet.create({
   kpiRow: {
     flexDirection: 'row',
     gap: 10,
-    marginBottom: 20,
+    marginBottom: 18,
   },
   kpiCard: {
     flex: 1,
@@ -558,86 +368,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
   sectionTitle: {
     color: '#f9fafb',
     fontSize: 16,
     fontWeight: '700',
-  },
-  addTorneoBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#10b981',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  addTorneoBtnText: {
-    color: '#0f172a',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  torneosAdminScroll: {
-    marginHorizontal: -4,
-  },
-  adminTorneoCard: {
-    width: 230,
-    backgroundColor: '#111827',
-    borderRadius: 14,
-    padding: 14,
-    marginHorizontal: 4,
-    borderWidth: 1,
-    borderColor: '#1f2937',
-  },
-  adminTorneoTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  adminTorneoTag: {
-    backgroundColor: '#1f2937',
-    color: '#10b981',
-    fontSize: 10,
-    fontWeight: '700',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  adminTorneoEstado: {
-    fontSize: 11,
-    color: '#9ca3af',
-  },
-  adminTorneoTitle: {
-    color: '#f9fafb',
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  adminTorneoCat: {
-    color: '#9ca3af',
-    fontSize: 11,
-    marginBottom: 8,
-  },
-  adminTorneoProgress: {
-    borderTopWidth: 1,
-    borderTopColor: '#1f2937',
-    paddingTop: 8,
-  },
-  adminTorneoCupos: {
-    color: '#6b7280',
-    fontSize: 11,
-    marginBottom: 2,
-  },
-  adminTorneoPremio: {
-    color: '#fbbf24',
-    fontSize: 11,
-    fontWeight: '600',
   },
   searchBar: {
     flexDirection: 'row',
@@ -772,20 +506,6 @@ const styles = StyleSheet.create({
   horarioDetalleText: {
     color: '#9ca3af',
     fontSize: 12,
-    marginBottom: 6,
-  },
-  pagoInfoRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  pagoMetodoTag: {
-    color: '#34d399',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  pagoOpTag: {
-    color: '#6b7280',
-    fontSize: 11,
   },
   accionesRow: {
     flexDirection: 'row',
@@ -799,41 +519,43 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderRadius: 6,
     backgroundColor: '#1f2937',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
   btnVerVoucherText: {
-    color: '#cbd5e1',
-    fontSize: 11,
+    color: '#94a3b8',
+    fontSize: 12,
     fontWeight: '600',
   },
   actionBtnsGroup: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
   },
   btnRechazar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    paddingVertical: 6,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
     paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
   },
   btnRechazarText: {
     color: '#f87171',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   btnAprobar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     backgroundColor: '#10b981',
-    paddingVertical: 6,
     paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 8,
   },
   btnAprobarText: {
@@ -842,156 +564,91 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   btnRevertir: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    backgroundColor: '#1f2937',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
   btnRevertirText: {
     color: '#9ca3af',
     fontSize: 11,
-    textDecorationLine: 'underline',
+    fontWeight: '600',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'center',
+    alignItems: 'center',
     padding: 20,
   },
-  modalCard: {
+  voucherPreviewCard: {
+    width: '100%',
+    maxWidth: 360,
     backgroundColor: '#111827',
     borderRadius: 20,
-    padding: 20,
+    padding: 18,
     borderWidth: 1,
     borderColor: '#1f2937',
-    maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   modalTitle: {
     color: '#f9fafb',
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
   },
-  modalBody: {},
-  inputLabel: {
-    color: '#cbd5e1',
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 6,
-    marginTop: 8,
-  },
-  modalInput: {
+  voucherContent: {},
+  voucherSummary: {
     backgroundColor: '#090d16',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#374151',
-    paddingHorizontal: 12,
-    height: 42,
-    color: '#f3f4f6',
-    fontSize: 13,
-  },
-  modalDeportesRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginBottom: 6,
-  },
-  modalDepBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    backgroundColor: '#090d16',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#374151',
-  },
-  modalDepBtnActive: {
-    backgroundColor: '#064e3b',
-    borderColor: '#10b981',
-  },
-  modalDepText: {
-    color: '#9ca3af',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  modalDepTextActive: {
-    color: '#34d399',
-  },
-  modalInputRow: {
-    flexDirection: 'row',
-  },
-  modalSubmitBtn: {
-    backgroundColor: '#10b981',
-    paddingVertical: 12,
     borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 18,
-    marginBottom: 10,
-  },
-  modalSubmitBtnText: {
-    color: '#0f172a',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  voucherPreviewCard: {
-    backgroundColor: '#111827',
-    borderRadius: 20,
-    padding: 20,
+    padding: 12,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: '#1f2937',
   },
-  voucherContent: {
-    alignItems: 'center',
-  },
-  voucherSummary: {
-    width: '100%',
-    backgroundColor: '#090d16',
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 16,
-  },
   voucherClient: {
     color: '#f9fafb',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
+    marginBottom: 4,
   },
   voucherAmount: {
     color: '#34d399',
-    fontSize: 15,
-    fontWeight: '800',
-    marginTop: 2,
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 6,
   },
   voucherOp: {
     color: '#9ca3af',
-    fontSize: 11,
-    marginTop: 2,
+    fontSize: 12,
+    marginBottom: 2,
   },
   voucherSimulatorBox: {
-    width: '100%',
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-    borderWidth: 1,
-    borderColor: '#10b981',
-    borderRadius: 12,
-    padding: 20,
     alignItems: 'center',
-    marginBottom: 16,
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.2)',
   },
   voucherValidText: {
     color: '#34d399',
     fontSize: 14,
     fontWeight: '700',
-    marginTop: 8,
+    marginTop: 6,
   },
   voucherHashText: {
     color: '#6b7280',
-    fontSize: 10,
-    marginTop: 4,
+    fontSize: 11,
+    marginTop: 2,
   },
   closePreviewBtn: {
     backgroundColor: '#1f2937',
-    width: '100%',
     paddingVertical: 10,
     borderRadius: 10,
     alignItems: 'center',
@@ -999,6 +656,6 @@ const styles = StyleSheet.create({
   closePreviewBtnText: {
     color: '#f9fafb',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

@@ -6,38 +6,30 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Linking,
   TextInput,
 } from 'react-native';
 import {
   Search,
   MapPin,
-  Star,
   Clock,
   Car,
   Umbrella,
   Lightbulb,
-  MessageCircle,
-  Trophy,
-  Flame,
   Calendar,
   CheckCircle2,
-  Sparkles,
-  ShieldAlert,
   Sun,
-  Shirt,
-  Disc,
+  ShieldCheck,
 } from 'lucide-react-native';
-import { Cancha, HorarioSlot, TipoGrass, Torneo } from '../types';
+import { Cancha, HorarioSlot, TipoGrass } from '../types';
 
 interface HomePublicProps {
   canchas: Cancha[];
-  torneos: Torneo[];
   onSelectSlot: (cancha: Cancha, horario: HorarioSlot, fecha: string) => void;
+  onOpenAdminLogin?: () => void;
 }
 
 const TIPO_GRASS_TABS: { id: TipoGrass | 'todos'; label: string; iconEmoji: string }[] = [
-  { id: 'todos', label: 'Todo Tipo de Grass', iconEmoji: '⚽' },
+  { id: 'todos', label: 'Todo Terreno', iconEmoji: '⚽' },
   { id: 'sintetico', label: 'Grass Sintético', iconEmoji: '🌱' },
   { id: 'natural', label: 'Grass Natural', iconEmoji: '🌾' },
 ];
@@ -50,15 +42,14 @@ const DIAS_FILTRO = [
 
 export const HomePublic: React.FC<HomePublicProps> = ({
   canchas,
-  torneos,
   onSelectSlot,
+  onOpenAdminLogin,
 }) => {
   const [grassActivo, setGrassActivo] = useState<TipoGrass | 'todos'>('todos');
   const [soloTechadas, setSoloTechadas] = useState(false);
   const [soloConLuz, setSoloConLuz] = useState(false);
   const [diaSeleccionado, setDiaSeleccionado] = useState(DIAS_FILTRO[0]);
   const [busqueda, setBusqueda] = useState('');
-  const [selectedSlotByCancha, setSelectedSlotByCancha] = useState<{ [canchaId: string]: string }>({});
 
   const canchasFiltradas = canchas.filter((cancha) => {
     const matchGrass = grassActivo === 'todos' || cancha.tipoGrass === grassActivo;
@@ -68,49 +59,41 @@ export const HomePublic: React.FC<HomePublicProps> = ({
       cancha.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
       cancha.sector.toLowerCase().includes(busqueda.toLowerCase()) ||
       cancha.ubicacion.toLowerCase().includes(busqueda.toLowerCase()) ||
-      cancha.formato.toLowerCase().includes(busqueda.toLowerCase()) ||
-      cancha.tipoSuperficie.toLowerCase().includes(busqueda.toLowerCase());
+      cancha.formato.toLowerCase().includes(busqueda.toLowerCase());
     return matchGrass && matchTecho && matchLuz && matchBusqueda;
   });
 
-  const handleOpenWhatsApp = () => {
-    const phone = '51976543210';
-    const message = encodeURIComponent('¡Hola CanchaYA Cajamarca! ⚽ Quisiera consultar disponibilidad y promociones para reservar una cancha de fútbol para una pichanga.');
-    Linking.openURL(`https://wa.me/${phone}?text=${message}`).catch(() => {
-      Linking.openURL(`whatsapp://send?phone=${phone}&text=${message}`);
-    });
-  };
-
   const handleSlotClick = (cancha: Cancha, slot: HorarioSlot) => {
     if (!slot.disponible) return;
-    setSelectedSlotByCancha((prev) => ({
-      ...prev,
-      [cancha.id]: slot.id,
-    }));
-  };
-
-  const handleReservarDirecto = (cancha: Cancha) => {
-    const slotId = selectedSlotByCancha[cancha.id];
-    const slot = cancha.horarios.find((h) => h.id === slotId) || cancha.horarios.find((h) => h.disponible);
-    if (slot) {
-      onSelectSlot(cancha, slot, diaSeleccionado.fechaStr);
-    }
+    onSelectSlot(cancha, slot, diaSeleccionado.fechaStr);
   };
 
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
-        {/* Hero Banner Cajamarca */}
+        {/* Banner de Bienvenida */}
         <View style={styles.heroCard}>
-          <View style={styles.heroContent}>
+          <View style={styles.heroTopRow}>
             <View style={styles.cajamarcaTag}>
-              <Text style={styles.cajamarcaTagText}>📍 Cajamarca • Pichangas & Torneos</Text>
+              <Text style={styles.cajamarcaTagText}>📍 Cajamarca • Pichangas</Text>
             </View>
-            <Text style={styles.heroTitle}>Reserva tu Cancha de Fútbol en Cajamarca</Text>
-            <Text style={styles.heroSubtitle}>
-              Campos de Grass Sintético y Césped Natural en Baños del Inca, Qhapaq Ñan y alrededores. Con balón y chalecos incluidos.
-            </Text>
+
+            {onOpenAdminLogin && (
+              <TouchableOpacity
+                style={styles.adminAccessBadge}
+                onPress={onOpenAdminLogin}
+                activeOpacity={0.8}
+              >
+                <ShieldCheck size={13} color="#38bdf8" />
+                <Text style={styles.adminAccessBadgeText}>Acceso Recepción</Text>
+              </TouchableOpacity>
+            )}
           </View>
+
+          <Text style={styles.heroTitle}>Consulta de Disponibilidad</Text>
+          <Text style={styles.heroSubtitle}>
+            Revisa los horarios libres en tiempo real y aparta tu turno al instante.
+          </Text>
         </View>
 
         {/* Barra de Búsqueda */}
@@ -118,7 +101,7 @@ export const HomePublic: React.FC<HomePublicProps> = ({
           <Search size={18} color="#94a3b8" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Buscar por complejo, sector (Baños del Inca, Qhapaq Ñan...)"
+            placeholder="Buscar por complejo o sector..."
             placeholderTextColor="#64748b"
             value={busqueda}
             onChangeText={setBusqueda}
@@ -130,12 +113,7 @@ export const HomePublic: React.FC<HomePublicProps> = ({
           )}
         </View>
 
-        {/* Filtro: Tipo de Grass */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Tipo de Terreno / Grass</Text>
-          <Text style={styles.sectionSubtitle}>{canchasFiltradas.length} canchas</Text>
-        </View>
-
+        {/* Filtros: Tipo de Grass */}
         <View style={styles.grassTabsContainer}>
           {TIPO_GRASS_TABS.map((tab) => {
             const isActive = grassActivo === tab.id;
@@ -162,7 +140,7 @@ export const HomePublic: React.FC<HomePublicProps> = ({
           >
             <Umbrella size={14} color={soloTechadas ? '#10b981' : '#94a3b8'} />
             <Text style={[styles.togglePillText, soloTechadas && styles.togglePillTextActive]}>
-              Solo Techadas
+              Techadas
             </Text>
           </TouchableOpacity>
 
@@ -172,16 +150,16 @@ export const HomePublic: React.FC<HomePublicProps> = ({
           >
             <Lightbulb size={14} color={soloConLuz ? '#10b981' : '#94a3b8'} />
             <Text style={[styles.togglePillText, soloConLuz && styles.togglePillTextActive]}>
-              Luz Nocturna
+              Con Luz
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Selector de Día Rápido */}
+        {/* Selector de Día */}
         <View style={styles.diaSelectorContainer}>
           <View style={styles.diaHeader}>
-            <Calendar size={15} color="#10b981" />
-            <Text style={styles.diaHeaderTitle}>Fecha de la pichanga:</Text>
+            <Calendar size={14} color="#10b981" />
+            <Text style={styles.diaHeaderTitle}>Fecha del turno:</Text>
           </View>
           <View style={styles.diasRow}>
             {DIAS_FILTRO.map((dia) => {
@@ -201,66 +179,27 @@ export const HomePublic: React.FC<HomePublicProps> = ({
           </View>
         </View>
 
-        {/* Torneos de Fútbol en Cajamarca */}
-        {torneos.length > 0 && (
-          <View style={styles.torneoBannerContainer}>
-            <View style={styles.torneoBannerHeader}>
-              <View style={styles.torneoTitleRow}>
-                <Trophy size={16} color="#f59e0b" />
-                <Text style={styles.torneoBannerTitle}>Torneos y Copas en Cajamarca</Text>
-              </View>
-              <Text style={styles.torneoBadge}>Inscripciones</Text>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.torneosScroll}>
-              {torneos.map((torneo) => (
-                <View key={torneo.id} style={styles.torneoCard}>
-                  <Text style={styles.torneoCardTitle}>{torneo.titulo}</Text>
-                  <Text style={styles.torneoCardCat}>
-                    ⚽ {torneo.formato} • {torneo.categoria}
-                  </Text>
-                  <View style={styles.torneoPrizeRow}>
-                    <Text style={styles.torneoPrizeLabel}>Premio:</Text>
-                    <Text style={styles.torneoPrizeValue}>{torneo.premio}</Text>
-                  </View>
-                  <View style={styles.torneoMetaRow}>
-                    <Text style={styles.torneoInscritos}>
-                      {torneo.equiposInscritos}/{torneo.maxEquipos} equipos
-                    </Text>
-                    <Text style={styles.torneoPrice}>S/ {torneo.inscripcion} x eq.</Text>
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        {/* Lista de Complejos de Fútbol */}
+        {/* Encabezado Lista de Canchas */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Canchas Disponibles</Text>
-          <Text style={styles.sectionSubtitle}>Turnos en tiempo real</Text>
+          <Text style={styles.sectionTitle}>Canchas y Complejos</Text>
+          <Text style={styles.sectionSubtitle}>{canchasFiltradas.length} disponibles</Text>
         </View>
 
+        {/* Lista de Canchas con Grilla Interactiva */}
         {canchasFiltradas.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>No se encontraron canchas con estos filtros</Text>
-            <Text style={styles.emptySubtitle}>
-              Prueba desactivando los filtros de techada o tipo de grass.
-            </Text>
+            <Text style={styles.emptyTitle}>No hay canchas con estos filtros</Text>
+            <Text style={styles.emptySubtitle}>Prueba ajustando la búsqueda o el tipo de terreno.</Text>
           </View>
         ) : (
           canchasFiltradas.map((cancha) => {
-            const selectedSlotId = selectedSlotByCancha[cancha.id] || cancha.horarios.find((h) => h.disponible)?.id;
-            const currentSelectedSlot = cancha.horarios.find((h) => h.id === selectedSlotId);
+            const primerHorarioLibre = cancha.horarios.find((h) => h.disponible);
 
             return (
               <View key={cancha.id} style={styles.canchaCard}>
                 {/* Imagen del Complejo */}
                 <View style={styles.imageContainer}>
                   <Image source={{ uri: cancha.imagenUrl }} style={styles.canchaImage} />
-                  <View style={styles.ratingBadge}>
-                    <Star size={13} color="#f59e0b" fill="#f59e0b" />
-                    <Text style={styles.ratingText}>{cancha.calificacion.toFixed(1)}</Text>
-                  </View>
                   
                   {/* Badge Tipo Grass */}
                   <View
@@ -286,13 +225,8 @@ export const HomePublic: React.FC<HomePublicProps> = ({
                     </Text>
                   </View>
 
-                  <Text style={styles.superficieText}>
-                    🏟️ {cancha.tipoSuperficie}
-                  </Text>
-
-                  {/* Badges Clave: Techo, Luz, Balón, Chalecos */}
+                  {/* Badges de características */}
                   <View style={styles.keyBadgesRow}>
-                    {/* Badge Techo */}
                     <View style={[styles.featureBadge, cancha.techada ? styles.featureBadgeActive : styles.featureBadgeNeutral]}>
                       {cancha.techada ? (
                         <>
@@ -307,12 +241,11 @@ export const HomePublic: React.FC<HomePublicProps> = ({
                       )}
                     </View>
 
-                    {/* Badge Luz */}
                     <View style={[styles.featureBadge, cancha.iluminacion ? styles.featureBadgeActive : styles.featureBadgeNeutral]}>
                       {cancha.iluminacion ? (
                         <>
                           <Lightbulb size={12} color="#34d399" />
-                          <Text style={styles.featureBadgeTextActive}>Luz LED Nocturna</Text>
+                          <Text style={styles.featureBadgeTextActive}>Con Luz LED</Text>
                         </>
                       ) : (
                         <>
@@ -322,7 +255,6 @@ export const HomePublic: React.FC<HomePublicProps> = ({
                       )}
                     </View>
 
-                    {/* Badge Cochera */}
                     {cancha.estacionamiento && (
                       <View style={[styles.featureBadge, styles.featureBadgeNeutral]}>
                         <Car size={12} color="#94a3b8" />
@@ -331,40 +263,23 @@ export const HomePublic: React.FC<HomePublicProps> = ({
                     )}
                   </View>
 
-                  {/* Opciones de Fútbol Incluidas */}
-                  <View style={styles.footballIncludedBox}>
-                    <Text style={styles.footballIncludedTitle}>⚽ Equipamiento incluido gratis:</Text>
-                    <View style={styles.footballIncludedList}>
-                      {cancha.incluyeBalon && (
-                        <Text style={styles.footballIncludedItem}>✓ Balón Oficial Puma/Adidas</Text>
-                      )}
-                      {cancha.incluyeChalecos && (
-                        <Text style={styles.footballIncludedItem}>✓ Juego de 12 Chalecos</Text>
-                      )}
-                      {cancha.duchasCalientes && (
-                        <Text style={styles.footballIncludedItem}>✓ Duchas con agua caliente</Text>
-                      )}
-                    </View>
-                  </View>
-
-                  {/* Bloques de Horarios */}
+                  {/* Grilla Interactiva de Horarios */}
                   <View style={styles.slotsSection}>
                     <View style={styles.slotsHeaderRow}>
                       <View style={styles.slotsTitleRow}>
                         <Clock size={14} color="#94a3b8" />
-                        <Text style={styles.slotsTitle}>Horarios ({diaSeleccionado.label}):</Text>
+                        <Text style={styles.slotsTitle}>Toca un horario libre para apartar:</Text>
                       </View>
                       <View style={styles.legendRow}>
                         <View style={[styles.legendDot, { backgroundColor: '#10b981' }]} />
                         <Text style={styles.legendText}>Libre</Text>
-                        <View style={[styles.legendDot, { backgroundColor: '#475569', marginLeft: 8 }]} />
+                        <View style={[styles.legendDot, { backgroundColor: '#475569', marginLeft: 6 }]} />
                         <Text style={styles.legendText}>Ocupado</Text>
                       </View>
                     </View>
 
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.slotsScroll}>
                       {cancha.horarios.map((slot) => {
-                        const isSelected = selectedSlotId === slot.id && slot.disponible;
                         return (
                           <TouchableOpacity
                             key={slot.id}
@@ -373,14 +288,13 @@ export const HomePublic: React.FC<HomePublicProps> = ({
                             style={[
                               styles.slotCard,
                               !slot.disponible && styles.slotCardDisabled,
-                              isSelected && styles.slotCardSelected,
                             ]}
+                            activeOpacity={0.7}
                           >
                             <Text
                               style={[
                                 styles.slotTimeText,
                                 !slot.disponible && styles.slotTimeTextDisabled,
-                                isSelected && styles.slotTimeTextSelected,
                               ]}
                             >
                               {slot.horaInicio}
@@ -389,54 +303,37 @@ export const HomePublic: React.FC<HomePublicProps> = ({
                               style={[
                                 styles.slotPriceText,
                                 !slot.disponible && styles.slotPriceTextDisabled,
-                                isSelected && styles.slotPriceTextSelected,
                               ]}
                             >
                               {slot.disponible ? `S/ ${slot.precio}` : 'Ocupado'}
                             </Text>
-                            {isSelected && (
-                              <View style={styles.checkIcon}>
-                                <CheckCircle2 size={12} color="#0f172a" />
-                              </View>
-                            )}
                           </TouchableOpacity>
                         );
                       })}
                     </ScrollView>
                   </View>
 
-                  {/* Botón de Acción Directo */}
-                  <TouchableOpacity
-                    style={styles.bookActionBtn}
-                    onPress={() => handleReservarDirecto(cancha)}
-                  >
-                    <Text style={styles.bookActionBtnText}>
-                      Reservar {currentSelectedSlot ? `${currentSelectedSlot.horaInicio} (S/ ${currentSelectedSlot.precio})` : 'Horario'}
-                    </Text>
-                  </TouchableOpacity>
+                  {/* Botón de Acción Rápida */}
+                  {primerHorarioLibre && (
+                    <TouchableOpacity
+                      style={styles.bookActionBtn}
+                      onPress={() => handleSlotClick(cancha, primerHorarioLibre)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.bookActionBtnText}>
+                        Apartar Horario ({primerHorarioLibre.horaInicio} • S/ {primerHorarioLibre.precio})
+                      </Text>
+                      <CheckCircle2 size={16} color="#090d16" />
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             );
           })
         )}
 
-        <View style={{ height: 90 }} />
+        <View style={{ height: 40 }} />
       </ScrollView>
-
-      {/* Botón Flotante de WhatsApp Cajamarca */}
-      <TouchableOpacity
-        style={styles.floatingWhatsApp}
-        activeOpacity={0.85}
-        onPress={handleOpenWhatsApp}
-      >
-        <View style={styles.whatsappIconBg}>
-          <MessageCircle size={26} color="#ffffff" fill="#25d366" />
-        </View>
-        <View style={styles.floatingLabel}>
-          <Text style={styles.floatingWhatsAppText}>WhatsApp Pichangas</Text>
-          <Text style={styles.floatingWhatsAppSub}>Cajamarca</Text>
-        </View>
-      </TouchableOpacity>
     </View>
   );
 };
@@ -457,18 +354,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#1f2937',
     marginBottom: 16,
-    overflow: 'hidden',
   },
-  heroContent: {
-    zIndex: 1,
+  heroTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    flexWrap: 'wrap',
+    gap: 8,
   },
   cajamarcaTag: {
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    alignSelf: 'flex-start',
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 20,
-    marginBottom: 10,
     borderWidth: 1,
     borderColor: 'rgba(16, 185, 129, 0.3)',
   },
@@ -477,12 +376,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  adminAccessBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+  },
+  adminAccessBadgeText: {
+    color: '#38bdf8',
+    fontSize: 11,
+    fontWeight: '700',
+  },
   heroTitle: {
     color: '#f9fafb',
-    fontSize: 21,
+    fontSize: 20,
     fontWeight: '800',
-    lineHeight: 26,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   heroSubtitle: {
     color: '#9ca3af',
@@ -498,7 +412,7 @@ const styles = StyleSheet.create({
     borderColor: '#1f2937',
     paddingHorizontal: 14,
     height: 48,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   searchInput: {
     flex: 1,
@@ -511,25 +425,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    color: '#f9fafb',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  sectionSubtitle: {
-    color: '#6b7280',
-    fontSize: 12,
-  },
   grassTabsContainer: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   grassTabBtn: {
     flex: 1,
@@ -537,7 +436,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#111827',
-    paddingVertical: 10,
+    paddingVertical: 9,
     paddingHorizontal: 6,
     borderRadius: 12,
     borderWidth: 1,
@@ -549,7 +448,7 @@ const styles = StyleSheet.create({
     borderColor: '#10b981',
   },
   grassTabEmoji: {
-    fontSize: 13,
+    fontSize: 12,
   },
   grassTabText: {
     color: '#9ca3af',
@@ -563,7 +462,7 @@ const styles = StyleSheet.create({
   togglesRow: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   togglePill: {
     flex: 1,
@@ -596,7 +495,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderWidth: 1,
     borderColor: '#1f2937',
-    marginBottom: 18,
+    marginBottom: 16,
   },
   diaHeader: {
     flexDirection: 'row',
@@ -632,105 +531,31 @@ const styles = StyleSheet.create({
     color: '#090d16',
     fontWeight: '700',
   },
-  torneoBannerContainer: {
-    backgroundColor: '#18181b',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#27272a',
-    marginBottom: 20,
-  },
-  torneoBannerHeader: {
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'baseline',
     marginBottom: 12,
   },
-  torneoTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  torneoBannerTitle: {
-    color: '#f4f4f5',
-    fontSize: 14,
+  sectionTitle: {
+    color: '#f9fafb',
+    fontSize: 16,
     fontWeight: '700',
   },
-  torneoBadge: {
-    color: '#fbbf24',
-    fontSize: 10,
-    fontWeight: '700',
-    backgroundColor: 'rgba(251, 191, 36, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  torneosScroll: {
-    marginHorizontal: -4,
-  },
-  torneoCard: {
-    width: 230,
-    backgroundColor: '#27272a',
-    borderRadius: 12,
-    padding: 12,
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: '#3f3f46',
-  },
-  torneoCardTitle: {
-    color: '#fafafa',
-    fontSize: 13,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  torneoCardCat: {
-    color: '#a1a1aa',
-    fontSize: 11,
-    marginBottom: 8,
-  },
-  torneoPrizeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 6,
-  },
-  torneoPrizeLabel: {
-    color: '#fbbf24',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  torneoPrizeValue: {
-    color: '#fef08a',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  torneoMetaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#3f3f46',
-    paddingTop: 6,
-  },
-  torneoInscritos: {
-    color: '#71717a',
-    fontSize: 10,
-  },
-  torneoPrice: {
-    color: '#34d399',
-    fontSize: 11,
-    fontWeight: '700',
+  sectionSubtitle: {
+    color: '#6b7280',
+    fontSize: 12,
   },
   canchaCard: {
     backgroundColor: '#111827',
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#1f2937',
-    marginBottom: 20,
+    marginBottom: 18,
     overflow: 'hidden',
   },
   imageContainer: {
-    height: 160,
+    height: 150,
     position: 'relative',
     backgroundColor: '#1f2937',
   },
@@ -738,27 +563,10 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  ratingBadge: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  ratingText: {
-    color: '#f8fafc',
-    fontSize: 12,
-    fontWeight: '700',
-  },
   grassTag: {
     position: 'absolute',
-    bottom: 12,
-    left: 12,
+    bottom: 10,
+    left: 10,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
@@ -782,23 +590,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#f9fafb',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 6,
+    marginBottom: 10,
   },
   locationText: {
     color: '#9ca3af',
     fontSize: 12,
     flex: 1,
-  },
-  superficieText: {
-    color: '#cbd5e1',
-    fontSize: 12,
-    marginBottom: 10,
   },
   keyBadgesRow: {
     flexDirection: 'row',
@@ -833,34 +636,13 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     fontSize: 11,
   },
-  footballIncludedBox: {
-    backgroundColor: '#090d16',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#1f2937',
-  },
-  footballIncludedTitle: {
-    color: '#fbbf24',
-    fontSize: 11,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  footballIncludedList: {
-    gap: 2,
-  },
-  footballIncludedItem: {
-    color: '#cbd5e1',
-    fontSize: 11,
-  },
   slotsSection: {
     backgroundColor: '#090d16',
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
     borderColor: '#1f2937',
-    marginBottom: 14,
+    marginBottom: 12,
   },
   slotsHeaderRow: {
     flexDirection: 'row',
@@ -898,64 +680,49 @@ const styles = StyleSheet.create({
   slotCard: {
     backgroundColor: '#111827',
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#10b981',
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
     marginHorizontal: 4,
     alignItems: 'center',
     minWidth: 90,
-    position: 'relative',
   },
   slotCardDisabled: {
     backgroundColor: '#1f2937',
     borderColor: '#27272a',
     opacity: 0.5,
   },
-  slotCardSelected: {
-    backgroundColor: '#064e3b',
-    borderColor: '#10b981',
-  },
   slotTimeText: {
     color: '#e5e7eb',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     marginBottom: 2,
   },
   slotTimeTextDisabled: {
     color: '#6b7280',
-  },
-  slotTimeTextSelected: {
-    color: '#34d399',
-    fontWeight: '700',
+    fontWeight: '500',
   },
   slotPriceText: {
-    color: '#10b981',
+    color: '#34d399',
     fontSize: 11,
     fontWeight: '700',
   },
   slotPriceTextDisabled: {
     color: '#4b5563',
   },
-  slotPriceTextSelected: {
-    color: '#ffffff',
-  },
-  checkIcon: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: '#10b981',
-    borderRadius: 6,
-  },
   bookActionBtn: {
     backgroundColor: '#10b981',
-    paddingVertical: 12,
+    paddingVertical: 11,
     borderRadius: 12,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
   bookActionBtnText: {
     color: '#090d16',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
   },
   emptyContainer: {
@@ -975,44 +742,5 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     fontSize: 13,
     textAlign: 'center',
-  },
-  floatingWhatsApp: {
-    position: 'absolute',
-    bottom: 20,
-    right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#25d366',
-    paddingVertical: 8,
-    paddingLeft: 8,
-    paddingRight: 16,
-    borderRadius: 30,
-    shadowColor: '#25d366',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 6,
-    zIndex: 999,
-  },
-  whatsappIconBg: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#128c7e',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  floatingLabel: {},
-  floatingWhatsAppText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '800',
-    lineHeight: 14,
-  },
-  floatingWhatsAppSub: {
-    color: '#e6fffa',
-    fontSize: 10,
-    fontWeight: '600',
   },
 });

@@ -16,15 +16,11 @@ export interface Cancha {
   tipoSuperficie: string; // ej: "Grass Sintético Monofilamento 55mm", "Césped Natural Andino"
   ubicacion: string;
   sector: string;         // ej: "Baños del Inca", "Av. Hoyos Rubio", "Santa Apolonia", "Qhapaq Ñan"
-  calificacion: number;
   precioDesde: number;
   imagenUrl: string;
   techada: boolean;
   iluminacion: boolean;
   estacionamiento: boolean;
-  incluyeBalon: boolean;
-  incluyeChalecos: boolean;
-  duchasCalientes: boolean;
   horarios: HorarioSlot[];
 }
 
@@ -39,33 +35,10 @@ export interface Reserva {
   formato: string;
   clienteNombre: string;
   clienteTelefono: string;
-  clienteEmail?: string;
   fecha: string;       // ej: "Hoy, 30 Ago"
   horario: string;     // ej: "07:00 PM - 08:00 PM"
   monto: number;       // en Soles S/
   metodoPago: MetodoPago;
   estado: EstadoReserva;
-  comprobanteUrl?: string;
-  codigoOperacion?: string;
   fechaCreacion: string;
-  adicionales?: {
-    balonExtra?: boolean;
-    juegoChalecos?: boolean;
-    arbitroColegiado?: boolean;
-  };
-}
-
-export interface Torneo {
-  id: string;
-  titulo: string;
-  formato: string;     // ej: "Fútbol 7", "Fútbol 8 Libre"
-  tipoGrass: TipoGrass;
-  categoria: string;   // ej: "Libre Varones", "Interbarrios Cajamarca", "Master 35+"
-  premio: string;      // ej: "S/ 4,000 + Copa Cajamarquina"
-  inscripcion: number; // en Soles S/
-  fechaInicio: string;
-  equiposInscritos: number;
-  maxEquipos: number;
-  estado: 'abierto' | 'en_progreso' | 'finalizado';
-  bannerUrl?: string;
 }

@@ -9,21 +9,20 @@ import {
   ScrollView,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
-import Svg, { Rect } from 'react-native-svg';
 import {
   X,
   CheckCircle2,
-  QrCode,
-  Upload,
-  Copy,
-  CreditCard,
   Phone,
   User,
   ShieldCheck,
-  Zap,
+  AlertCircle,
+  Clock,
+  Calendar,
 } from 'lucide-react-native';
-import { Cancha, HorarioSlot, MetodoPago, Reserva } from '../types';
+import { Cancha, HorarioSlot, Reserva } from '../types';
+import { crearReserva } from '../services/reservaService';
 
 interface CheckoutModalProps {
   visible: boolean;
@@ -31,7 +30,7 @@ interface CheckoutModalProps {
   horario: HorarioSlot | null;
   fechaSeleccionada: string;
   onClose: () => void;
-  onConfirmReserva: (nuevaReserva: Omit<Reserva, 'id' | 'fechaCreacion'>) => void;
+  onConfirmReserva: (nuevaReserva: Omit<Reserva, 'id' | 'fechaCreacion'> & { id?: string }) => void;
 }
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({
@@ -42,86 +41,98 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   onClose,
   onConfirmReserva,
 }) => {
-  const [metodoPago, setMetodoPago] = useState<MetodoPago>('yape');
   const [nombre, setNombre] = useState('');
   const [telefono, setTelefono] = useState('');
-  const [codigoOperacion, setCodigoOperacion] = useState('');
-  const [comprobanteSubido, setComprobanteSubido] = useState(false);
-  const [copiado, setCopiado] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!cancha || !horario) return null;
 
-  const handleCopiarNumero = () => {
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 2500);
-  };
+  const handleConfirmar = async () => {
+    const nombreLimpio = nombre.trim();
+    const telefonoLimpio = telefono.trim();
 
-  const handleSimularSubida = () => {
-    setComprobanteSubido(true);
-    if (!codigoOperacion) {
-      const randomOp = `${metodoPago.toUpperCase().slice(0, 2)}-${Math.floor(100000 + Math.random() * 900000)}`;
-      setCodigoOperacion(randomOp);
-    }
-  };
-
-  const handleConfirmar = () => {
-    if (!nombre.trim()) {
+    if (!nombreLimpio) {
       Alert.alert('Campo requerido', 'Por favor ingresa tu nombre completo.');
       return;
     }
-    if (!telefono.trim()) {
-      Alert.alert('Campo requerido', 'Por favor ingresa tu número de WhatsApp para enviarte la confirmación.');
+    if (!telefonoLimpio) {
+      Alert.alert('Campo requerido', 'Por favor ingresa tu número de WhatsApp para confirmar tu turno.');
       return;
     }
 
-    onConfirmReserva({
-      canchaId: cancha.id,
-      canchaNombre: cancha.nombre,
-      tipoGrass: cancha.tipoGrass,
-      formato: cancha.formato,
-      clienteNombre: nombre.trim(),
-      clienteTelefono: telefono.trim(),
-      fecha: fechaSeleccionada,
-      horario: `${horario.horaInicio} - ${horario.horaFin}`,
-      monto: horario.precio,
-      metodoPago: metodoPago,
-      estado: 'pendiente',
-      codigoOperacion: codigoOperacion.trim() || `OP-${Math.floor(100000 + Math.random() * 900000)}`,
-      comprobanteUrl: comprobanteSubido ? 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=400&q=80' : undefined,
-      adicionales: {
-        balonExtra: true,
-        juegoChalecos: true,
-      },
-    });
+    setLoading(true);
+    setErrorMsg(null);
 
-    // Reset fields
-    setNombre('');
-    setTelefono('');
-    setCodigoOperacion('');
-    setComprobanteSubido(false);
+    try {
+      // Registrar en Cloud Firestore vía reservaService
+      const reservaCreada = await crearReserva({
+        clienteNombre: nombreLimpio,
+        clienteTelefono: telefonoLimpio,
+        canchaNombre: cancha.nombre,
+        fecha: fechaSeleccionada,
+        horario: `${horario.horaInicio} - ${horario.horaFin}`,
+        montoTotal: horario.precio,
+        canchaId: cancha.id,
+        tipoGrass: cancha.tipoGrass,
+        formato: cancha.formato,
+        metodoPago: 'efectivo',
+      });
+
+      // Notificar a la aplicación para actualizar la UI local
+      onConfirmReserva({
+        id: reservaCreada.id,
+        canchaId: cancha.id,
+        canchaNombre: cancha.nombre,
+        tipoGrass: cancha.tipoGrass,
+        formato: cancha.formato,
+        clienteNombre: nombreLimpio,
+        clienteTelefono: telefonoLimpio,
+        fecha: fechaSeleccionada,
+        horario: `${horario.horaInicio} - ${horario.horaFin}`,
+        monto: horario.precio,
+        metodoPago: 'efectivo',
+        estado: 'pendiente',
+      });
+
+      // Limpiar y cerrar
+      setNombre('');
+      setTelefono('');
+      setErrorMsg(null);
+      onClose();
+    } catch (error: any) {
+      console.error('Error al registrar reserva en Firestore:', error);
+      const msg = 'Hubo un problema al conectar con el servidor. Verifica tu conexión e inténtalo nuevamente.';
+      setErrorMsg(msg);
+      Alert.alert('Error al apartar turno', msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (loading) return;
+    setErrorMsg(null);
     onClose();
   };
 
-  const numeroYapePlin = '976 543 210';
-  const titularCuenta = 'CanchaYA Cajamarca Deportes S.A.C.';
-
   return (
-    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={handleClose}>
       <View style={styles.overlay}>
         <View style={styles.container}>
           {/* Header */}
           <View style={styles.header}>
             <View>
-              <Text style={styles.headerTitle}>Confirmar Reserva de Cancha</Text>
-              <Text style={styles.headerSubtitle}>Pichanga en Cajamarca • Paso final</Text>
+              <Text style={styles.headerTitle}>Apartar Turno</Text>
+              <Text style={styles.headerSubtitle}>Registro rápido en Cajamarca</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <TouchableOpacity onPress={handleClose} style={styles.closeButton} disabled={loading}>
               <X size={20} color="#94a3b8" />
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            {/* Resumen Card */}
+            {/* Resumen del Turno */}
             <View style={styles.resumenCard}>
               <View style={styles.resumenHeader}>
                 <Text style={styles.canchaNombre} numberOfLines={1}>
@@ -136,30 +147,35 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
               <View style={styles.resumenDetailsRow}>
                 <View style={styles.resumenDetailItem}>
-                  <Text style={styles.detailLabel}>Fecha</Text>
+                  <View style={styles.detailLabelRow}>
+                    <Calendar size={12} color="#10b981" />
+                    <Text style={styles.detailLabel}>Fecha</Text>
+                  </View>
                   <Text style={styles.detailValue}>{fechaSeleccionada}</Text>
                 </View>
+
                 <View style={styles.resumenDetailItem}>
-                  <Text style={styles.detailLabel}>Horario</Text>
+                  <View style={styles.detailLabelRow}>
+                    <Clock size={12} color="#10b981" />
+                    <Text style={styles.detailLabel}>Horario</Text>
+                  </View>
                   <Text style={styles.detailValue}>{horario.horaInicio} - {horario.horaFin}</Text>
                 </View>
+
                 <View style={styles.resumenDetailItem}>
                   <Text style={styles.detailLabel}>Terreno</Text>
-                  <Text style={styles.detailValueCapitalized}>
-                    {cancha.tipoGrass === 'sintetico' ? 'Grass Sintético' : 'Grass Natural'}
+                  <Text style={styles.detailValueGrass}>
+                    {cancha.tipoGrass === 'sintetico' ? 'Sintético' : 'Natural'}
                   </Text>
                 </View>
               </View>
-
-              <View style={styles.includedInCard}>
-                <Text style={styles.includedInCardText}>
-                  ⚽ Incluye: Balón reglamentario, chalecos y duchas con agua caliente
-                </Text>
-              </View>
             </View>
 
-            {/* Datos de contacto */}
-            <Text style={styles.sectionTitle}>Datos del Capitán / Organizador</Text>
+            {/* Captura de Datos Mínimos: Nombre y Teléfono */}
+            <Text style={styles.sectionTitle}>Datos para la Reserva</Text>
+            <Text style={styles.sectionSubtitle}>
+              Ingresa tus datos para registrar el turno a tu nombre.
+            </Text>
 
             <View style={styles.inputGroup}>
               <View style={styles.inputIconContainer}>
@@ -170,7 +186,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 placeholder="Nombre y Apellidos completos"
                 placeholderTextColor="#64748b"
                 value={nombre}
-                onChangeText={setNombre}
+                editable={!loading}
+                onChangeText={(text) => {
+                  setNombre(text);
+                  setErrorMsg(null);
+                }}
               />
             </View>
 
@@ -184,145 +204,50 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 placeholderTextColor="#64748b"
                 keyboardType="phone-pad"
                 value={telefono}
-                onChangeText={setTelefono}
+                editable={!loading}
+                onChangeText={(text) => {
+                  setTelefono(text);
+                  setErrorMsg(null);
+                }}
               />
             </View>
 
-            {/* Selector de Método de Pago */}
-            <Text style={styles.sectionTitle}>Método de Pago</Text>
-            <View style={styles.metodosContainer}>
-              <TouchableOpacity
-                style={[styles.metodoBtn, metodoPago === 'yape' && styles.metodoBtnActiveYape]}
-                onPress={() => setMetodoPago('yape')}
-              >
-                <View style={[styles.metodoDot, { backgroundColor: '#7b1fa2' }]} />
-                <Text style={[styles.metodoText, metodoPago === 'yape' && styles.metodoTextActive]}>
-                  Yape
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.metodoBtn, metodoPago === 'plin' && styles.metodoBtnActivePlin]}
-                onPress={() => setMetodoPago('plin')}
-              >
-                <View style={[styles.metodoDot, { backgroundColor: '#00b0ff' }]} />
-                <Text style={[styles.metodoText, metodoPago === 'plin' && styles.metodoTextActive]}>
-                  Plin
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.metodoBtn, metodoPago === 'transferencia' && styles.metodoBtnActiveTransf]}
-                onPress={() => setMetodoPago('transferencia')}
-              >
-                <CreditCard size={14} color={metodoPago === 'transferencia' ? '#10b981' : '#94a3b8'} />
-                <Text style={[styles.metodoText, metodoPago === 'transferencia' && styles.metodoTextActive]}>
-                  Transferencia
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Caja de Pago QR / Cuentas */}
-            <View style={styles.paymentBox}>
-              <View style={styles.paymentHeader}>
-                <QrCode size={20} color={metodoPago === 'yape' ? '#c084fc' : metodoPago === 'plin' ? '#38bdf8' : '#34d399'} />
-                <Text style={styles.paymentTitle}>
-                  {metodoPago === 'yape' ? 'Paga con Yape' : metodoPago === 'plin' ? 'Paga con Plin' : 'Transferencia BCP / BBVA / Caja Cajamarca'}
-                </Text>
+            {/* Mensaje de Error */}
+            {errorMsg ? (
+              <View style={styles.errorBox}>
+                <AlertCircle size={16} color="#f87171" />
+                <Text style={styles.errorText}>{errorMsg}</Text>
               </View>
+            ) : null}
 
-              {/* QR Code Simulado con SVG */}
-              <View style={styles.qrContainer}>
-                <View style={styles.qrWrapper}>
-                  <Svg width={120} height={120} viewBox="0 0 130 130">
-                    <Rect width="130" height="130" fill="#ffffff" rx={8} />
-                    <Rect x="15" y="15" width="30" height="30" fill="#0f172a" />
-                    <Rect x="20" y="20" width="20" height="20" fill="#ffffff" />
-                    <Rect x="25" y="25" width="10" height="10" fill="#0f172a" />
-
-                    <Rect x="85" y="15" width="30" height="30" fill="#0f172a" />
-                    <Rect x="90" y="20" width="20" height="20" fill="#ffffff" />
-                    <Rect x="95" y="25" width="10" height="10" fill="#0f172a" />
-
-                    <Rect x="15" y="85" width="30" height="30" fill="#0f172a" />
-                    <Rect x="20" y="90" width="20" height="20" fill="#ffffff" />
-                    <Rect x="25" y="95" width="10" height="10" fill="#0f172a" />
-
-                    <Rect x="55" y="20" width="8" height="8" fill="#0f172a" />
-                    <Rect x="68" y="20" width="8" height="8" fill="#0f172a" />
-                    <Rect x="55" y="35" width="18" height="8" fill="#0f172a" />
-                    <Rect x="20" y="55" width="10" height="10" fill="#0f172a" />
-                    <Rect x="35" y="60" width="8" height="15" fill="#0f172a" />
-                    <Rect x="50" y="55" width="30" height="20" fill={metodoPago === 'yape' ? '#7b1fa2' : metodoPago === 'plin' ? '#0284c7' : '#059669'} />
-                    <Rect x="90" y="55" width="12" height="10" fill="#0f172a" />
-                    <Rect x="105" y="68" width="10" height="10" fill="#0f172a" />
-                    <Rect x="55" y="85" width="15" height="10" fill="#0f172a" />
-                    <Rect x="75" y="85" width="15" height="25" fill="#0f172a" />
-                    <Rect x="95" y="95" width="20" height="15" fill="#0f172a" />
-                    <Rect x="55" y="102" width="12" height="12" fill="#0f172a" />
-                  </Svg>
-                  <View style={styles.qrLogoBadge}>
-                    <Zap size={14} color="#ffffff" />
-                  </View>
-                </View>
-
-                <View style={styles.qrInfo}>
-                  <Text style={styles.qrInfoTitle}>{titularCuenta}</Text>
-                  <Text style={styles.qrInfoNumber}>{numeroYapePlin}</Text>
-                  <TouchableOpacity style={styles.copyBtn} onPress={handleCopiarNumero}>
-                    <Copy size={13} color="#10b981" />
-                    <Text style={styles.copyBtnText}>
-                      {copiado ? '¡Número copiado!' : 'Copiar número'}
-                    </Text>
-                  </TouchableOpacity>
-                  <Text style={styles.qrMontoAlert}>Monto: S/ {horario.precio}.00</Text>
-                </View>
-              </View>
-
-              {/* Subir Comprobante / Nro Operación */}
-              <View style={styles.voucherSection}>
-                <Text style={styles.voucherLabel}>Validación de Pago (Comprobante / Captura):</Text>
-                
-                <TouchableOpacity
-                  style={[styles.uploadBtn, comprobanteSubido && styles.uploadBtnSuccess]}
-                  onPress={handleSimularSubida}
-                >
-                  {comprobanteSubido ? (
-                    <>
-                      <CheckCircle2 size={18} color="#10b981" />
-                      <Text style={styles.uploadBtnTextSuccess}>Voucher adjuntado con éxito ✓</Text>
-                    </>
-                  ) : (
-                    <>
-                      <Upload size={18} color="#94a3b8" />
-                      <Text style={styles.uploadBtnText}>Subir foto de Voucher / Captura Yape</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-
-                <TextInput
-                  style={styles.operacionInput}
-                  placeholder="N° de Operación (opcional si subes captura)"
-                  placeholderTextColor="#64748b"
-                  value={codigoOperacion}
-                  onChangeText={setCodigoOperacion}
-                />
-              </View>
-            </View>
-
+            {/* Nota Informativa */}
             <View style={styles.guaranteeBox}>
               <ShieldCheck size={16} color="#10b981" />
               <Text style={styles.guaranteeText}>
-                La cancha queda reservada por 15 minutos mientras recepción valida el abono en Cajamarca.
+                Tu turno quedará registrado en estado pendiente y sincronizado con Cloud Firestore.
               </Text>
             </View>
           </ScrollView>
 
-          {/* Footer Action */}
+          {/* Botón de Confirmación */}
           <View style={styles.footer}>
-            <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirmar}>
-              <Text style={styles.confirmBtnText}>Confirmar y Reservar Cancha</Text>
-              <CheckCircle2 size={20} color="#0f172a" />
+            <TouchableOpacity
+              style={[styles.confirmBtn, loading && styles.confirmBtnDisabled]}
+              onPress={handleConfirmar}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <>
+                  <ActivityIndicator size="small" color="#0f172a" />
+                  <Text style={styles.confirmBtnText}>Apartando Turno...</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.confirmBtnText}>Confirmar y Apartar Turno</Text>
+                  <CheckCircle2 size={20} color="#0f172a" />
+                </>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -343,7 +268,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
     borderWidth: 1,
     borderColor: '#334155',
-    maxHeight: '92%',
+    maxHeight: '90%',
     paddingBottom: Platform.OS === 'ios' ? 24 : 16,
   },
   header: {
@@ -384,7 +309,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: '#334155',
-    marginBottom: 18,
+    marginBottom: 16,
   },
   resumenHeader: {
     flexDirection: 'row',
@@ -419,15 +344,19 @@ const styles = StyleSheet.create({
   resumenDetailsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
   },
   resumenDetailItem: {
     flex: 1,
   },
+  detailLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 2,
+  },
   detailLabel: {
     fontSize: 11,
     color: '#94a3b8',
-    marginBottom: 2,
     textTransform: 'uppercase',
   },
   detailValue: {
@@ -435,28 +364,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#e2e8f0',
   },
-  detailValueCapitalized: {
+  detailValueGrass: {
     fontSize: 13,
     fontWeight: '600',
     color: '#10b981',
-  },
-  includedInCard: {
-    backgroundColor: '#0f172a',
-    padding: 8,
-    borderRadius: 8,
-    marginTop: 4,
-  },
-  includedInCardText: {
-    color: '#fbbf24',
-    fontSize: 11,
-    fontWeight: '600',
   },
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
     color: '#cbd5e1',
-    marginBottom: 10,
-    marginTop: 4,
+    marginBottom: 2,
+  },
+  sectionSubtitle: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginBottom: 12,
   },
   inputGroup: {
     flexDirection: 'row',
@@ -465,7 +387,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#334155',
-    marginBottom: 10,
+    marginBottom: 12,
     paddingHorizontal: 12,
   },
   inputIconContainer: {
@@ -473,190 +395,37 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    height: 46,
+    height: 48,
     color: '#f8fafc',
     fontSize: 14,
   },
-  metodosContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 14,
-  },
-  metodoBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#1e293b',
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  metodoBtnActiveYape: {
-    borderColor: '#a855f7',
-    backgroundColor: '#3b0764',
-  },
-  metodoBtnActivePlin: {
-    borderColor: '#38bdf8',
-    backgroundColor: '#075985',
-  },
-  metodoBtnActiveTransf: {
-    borderColor: '#10b981',
-    backgroundColor: '#064e3b',
-  },
-  metodoDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  metodoText: {
-    color: '#94a3b8',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  metodoTextActive: {
-    color: '#f8fafc',
-  },
-  paymentBox: {
-    backgroundColor: '#1e293b',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#334155',
-    marginBottom: 16,
-  },
-  paymentHeader: {
+  errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 14,
-  },
-  paymentTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#f8fafc',
-  },
-  qrContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    marginBottom: 16,
-    backgroundColor: '#0f172a',
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    marginBottom: 12,
   },
-  qrWrapper: {
-    position: 'relative',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  qrLogoBadge: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: [{ translateX: -12 }, { translateY: -12 }],
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#10b981',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#ffffff',
-  },
-  qrInfo: {
+  errorText: {
+    color: '#f87171',
+    fontSize: 12,
+    fontWeight: '500',
     flex: 1,
-  },
-  qrInfoTitle: {
-    fontSize: 11,
-    color: '#94a3b8',
-    marginBottom: 2,
-  },
-  qrInfoNumber: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#f8fafc',
-    letterSpacing: 0.5,
-  },
-  copyBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 6,
-    paddingVertical: 4,
-  },
-  copyBtnText: {
-    fontSize: 12,
-    color: '#10b981',
-    fontWeight: '600',
-  },
-  qrMontoAlert: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#34d399',
-    marginTop: 6,
-  },
-  voucherSection: {
-    borderTopWidth: 1,
-    borderTopColor: '#334155',
-    paddingTop: 12,
-  },
-  voucherLabel: {
-    fontSize: 12,
-    color: '#cbd5e1',
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  uploadBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#0f172a',
-    borderWidth: 1,
-    borderColor: '#475569',
-    borderStyle: 'dashed',
-    borderRadius: 10,
-    paddingVertical: 12,
-    marginBottom: 10,
-  },
-  uploadBtnSuccess: {
-    borderColor: '#10b981',
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    borderStyle: 'solid',
-  },
-  uploadBtnText: {
-    color: '#94a3b8',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  uploadBtnTextSuccess: {
-    color: '#34d399',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  operacionInput: {
-    backgroundColor: '#0f172a',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#334155',
-    paddingHorizontal: 12,
-    height: 42,
-    color: '#f8fafc',
-    fontSize: 13,
   },
   guaranteeBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     backgroundColor: 'rgba(16, 185, 129, 0.08)',
-    padding: 10,
+    padding: 12,
     borderRadius: 10,
-    marginBottom: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.2)',
   },
   guaranteeText: {
     flex: 1,
@@ -683,6 +452,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
+  },
+  confirmBtnDisabled: {
+    opacity: 0.7,
   },
   confirmBtnText: {
     color: '#0f172a',
