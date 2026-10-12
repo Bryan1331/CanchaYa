@@ -4,6 +4,7 @@
   "main": "index.ts",
   "dependencies": {
     "expo": "^57.0.0",
+    "expo-image-picker": "~57.0.20",
     "expo-status-bar": "~57.0.1",
     "firebase": "^12.18.0",
     "lucide-react-native": "^1.37.0",

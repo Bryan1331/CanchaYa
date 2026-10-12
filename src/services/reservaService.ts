@@ -14,17 +14,20 @@ export interface ReservaData {
   id?: string;
   clienteNombre: string;
   clienteTelefono: string;
+  clienteEmail?: string;
+  clienteDni?: string;
   canchaNombre: string;
   fecha: string;
   horario: string;
   montoTotal: number;
-  estado: 'pendiente' | 'aprobada' | 'rechazada' | 'completada' | string;
+  estado: 'pendiente' | 'pendiente_validacion' | 'aprobada' | 'rechazada' | 'completada' | string;
   canchaId?: string;
   tipoGrass?: string;
   formato?: string;
   metodoPago?: string;
   codigoOperacion?: string;
   comprobanteUrl?: string;
+  origen?: 'web' | 'presencial' | 'telefonica';
   adicionales?: {
     balonExtra?: boolean;
     juegoChalecos?: boolean;
@@ -35,28 +38,34 @@ export interface ReservaData {
 
 /**
  * Agrega un nuevo documento a la colección 'reservas' en Firestore.
- * Asigna automáticamente el estado 'pendiente' y el timestamp del servidor.
  * 
  * @param data Datos de la reserva a registrar
  * @returns La reserva registrada con su ID de Firestore
  */
 export const crearReserva = async (
-  data: Omit<ReservaData, 'id' | 'estado' | 'fechaCreacion'> & { estado?: string }
+  data: Omit<ReservaData, 'id' | 'fechaCreacion'> & { id?: string }
 ): Promise<ReservaData> => {
   const collectionRef = collection(db, 'reservas');
 
   const nuevaReservaDoc = {
     ...data,
-    estado: 'pendiente',
+    estado: data.estado || 'pendiente_validacion',
     fechaCreacion: serverTimestamp(),
   };
 
-  const docRef = await addDoc(collectionRef, nuevaReservaDoc);
-
-  return {
-    id: docRef.id,
-    ...nuevaReservaDoc,
-  };
+  try {
+    const docRef = await addDoc(collectionRef, nuevaReservaDoc);
+    return {
+      id: docRef.id,
+      ...nuevaReservaDoc,
+    };
+  } catch (error) {
+    console.warn('Registro local de fallback (Firestore offline o no configurado):', error);
+    return {
+      id: data.id || `RES-${Math.floor(1000 + Math.random() * 9000)}`,
+      ...nuevaReservaDoc,
+    };
+  }
 };
 
 /**

@@ -19,13 +19,25 @@ import {
   CheckCircle2,
   Sun,
   ShieldCheck,
+  Lock,
+  CloudRain,
+  Wrench,
+  User,
+  History,
+  AlertTriangle,
+  LogOut,
 } from 'lucide-react-native';
-import { Cancha, HorarioSlot, TipoGrass } from '../types';
+import { Cancha, HorarioSlot, TipoGrass, UsuarioCliente } from '../types';
 
 interface HomePublicProps {
   canchas: Cancha[];
+  usuarioCliente: UsuarioCliente | null;
   onSelectSlot: (cancha: Cancha, horario: HorarioSlot, fecha: string) => void;
+  onRequireAuth: (cancha: Cancha, horario: HorarioSlot, fecha: string) => void;
+  onLogoutCliente?: () => void;
   onOpenAdminLogin?: () => void;
+  onOpenAuthModal?: () => void;
+  onOpenMisPichangas?: () => void;
 }
 
 const TIPO_GRASS_TABS: { id: TipoGrass | 'todos'; label: string; iconEmoji: string }[] = [
@@ -42,8 +54,13 @@ const DIAS_FILTRO = [
 
 export const HomePublic: React.FC<HomePublicProps> = ({
   canchas,
+  usuarioCliente,
   onSelectSlot,
+  onRequireAuth,
+  onLogoutCliente,
   onOpenAdminLogin,
+  onOpenAuthModal,
+  onOpenMisPichangas,
 }) => {
   const [grassActivo, setGrassActivo] = useState<TipoGrass | 'todos'>('todos');
   const [soloTechadas, setSoloTechadas] = useState(false);
@@ -64,18 +81,72 @@ export const HomePublic: React.FC<HomePublicProps> = ({
   });
 
   const handleSlotClick = (cancha: Cancha, slot: HorarioSlot) => {
-    if (!slot.disponible) return;
-    onSelectSlot(cancha, slot, diaSeleccionado.fechaStr);
+    // Si está ocupado o bloqueado por mantenimiento/lluvia, no permitir acción
+    if (!slot.disponible || slot.bloqueado) return;
+
+    // [US-21] Si el usuario no está autenticado, requerir autenticación
+    if (!usuarioCliente) {
+      onRequireAuth(cancha, slot, diaSeleccionado.fechaStr);
+    } else {
+      onSelectSlot(cancha, slot, diaSeleccionado.fechaStr);
+    }
   };
 
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
+        {/* Banner Superior de Estado de Jugador */}
+        {usuarioCliente ? (
+          <View style={styles.clientStatusBar}>
+            <View style={styles.clientStatusInfo}>
+              <View style={styles.clientAvatar}>
+                <User size={14} color="#10b981" />
+              </View>
+              <Text style={styles.clientStatusText}>
+                Jugador: <Text style={{ color: '#f8fafc', fontWeight: '800' }}>{usuarioCliente.nombre}</Text>
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {onOpenMisPichangas && (
+                <TouchableOpacity
+                  style={styles.misPichangasBtn}
+                  onPress={onOpenMisPichangas}
+                  activeOpacity={0.8}
+                >
+                  <History size={13} color="#34d399" />
+                  <Text style={styles.misPichangasBtnText}>Mis Pichangas</Text>
+                </TouchableOpacity>
+              )}
+              {onLogoutCliente && (
+                <TouchableOpacity
+                  style={styles.clientLogoutBarBtn}
+                  onPress={onLogoutCliente}
+                  activeOpacity={0.8}
+                >
+                  <LogOut size={13} color="#f87171" />
+                  <Text style={styles.clientLogoutBarBtnText}>Salir</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        ) : (
+          <View style={styles.guestNoticeBar}>
+            <Text style={styles.guestNoticeText}>
+              👋 Consulta la disponibilidad pública en tiempo real.
+            </Text>
+            {onOpenAuthModal && (
+              <TouchableOpacity onPress={onOpenAuthModal} style={styles.guestLoginBtn}>
+                <Text style={styles.guestLoginBtnText}>Iniciar Sesión</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         {/* Banner de Bienvenida */}
         <View style={styles.heroCard}>
           <View style={styles.heroTopRow}>
             <View style={styles.cajamarcaTag}>
-              <Text style={styles.cajamarcaTagText}>📍 Cajamarca • Pichangas</Text>
+              <Text style={styles.cajamarcaTagText}>📍 Cajamarca • Pichangas en Vivo</Text>
             </View>
 
             {onOpenAdminLogin && (
@@ -92,7 +163,7 @@ export const HomePublic: React.FC<HomePublicProps> = ({
 
           <Text style={styles.heroTitle}>Consulta de Disponibilidad</Text>
           <Text style={styles.heroSubtitle}>
-            Revisa los horarios libres en tiempo real y aparta tu turno al instante.
+            Revisa los horarios libres de las mejores canchas de Cajamarca y aparta tu turno al instante.
           </Text>
         </View>
 
@@ -101,7 +172,7 @@ export const HomePublic: React.FC<HomePublicProps> = ({
           <Search size={18} color="#94a3b8" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Buscar por complejo o sector..."
+            placeholder="Buscar por complejo, grass o sector..."
             placeholderTextColor="#64748b"
             value={busqueda}
             onChangeText={setBusqueda}
@@ -150,7 +221,7 @@ export const HomePublic: React.FC<HomePublicProps> = ({
           >
             <Lightbulb size={14} color={soloConLuz ? '#10b981' : '#94a3b8'} />
             <Text style={[styles.togglePillText, soloConLuz && styles.togglePillTextActive]}>
-              Con Luz
+              Con Luz LED
             </Text>
           </TouchableOpacity>
         </View>
@@ -193,14 +264,14 @@ export const HomePublic: React.FC<HomePublicProps> = ({
           </View>
         ) : (
           canchasFiltradas.map((cancha) => {
-            const primerHorarioLibre = cancha.horarios.find((h) => h.disponible);
+            const primerHorarioLibre = cancha.horarios.find((h) => h.disponible && !h.bloqueado);
 
             return (
               <View key={cancha.id} style={styles.canchaCard}>
                 {/* Imagen del Complejo */}
                 <View style={styles.imageContainer}>
                   <Image source={{ uri: cancha.imagenUrl }} style={styles.canchaImage} />
-                  
+
                   {/* Badge Tipo Grass */}
                   <View
                     style={[
@@ -227,7 +298,12 @@ export const HomePublic: React.FC<HomePublicProps> = ({
 
                   {/* Badges de características */}
                   <View style={styles.keyBadgesRow}>
-                    <View style={[styles.featureBadge, cancha.techada ? styles.featureBadgeActive : styles.featureBadgeNeutral]}>
+                    <View
+                      style={[
+                        styles.featureBadge,
+                        cancha.techada ? styles.featureBadgeActive : styles.featureBadgeNeutral,
+                      ]}
+                    >
                       {cancha.techada ? (
                         <>
                           <Umbrella size={12} color="#34d399" />
@@ -241,7 +317,12 @@ export const HomePublic: React.FC<HomePublicProps> = ({
                       )}
                     </View>
 
-                    <View style={[styles.featureBadge, cancha.iluminacion ? styles.featureBadgeActive : styles.featureBadgeNeutral]}>
+                    <View
+                      style={[
+                        styles.featureBadge,
+                        cancha.iluminacion ? styles.featureBadgeActive : styles.featureBadgeNeutral,
+                      ]}
+                    >
                       {cancha.iluminacion ? (
                         <>
                           <Lightbulb size={12} color="#34d399" />
@@ -263,50 +344,67 @@ export const HomePublic: React.FC<HomePublicProps> = ({
                     )}
                   </View>
 
-                  {/* Grilla Interactiva de Horarios */}
+                  {/* [US-15] Grilla Interactiva de Horarios con Soporte de Bloqueo por Lluvia/Mantenimiento */}
                   <View style={styles.slotsSection}>
                     <View style={styles.slotsHeaderRow}>
                       <View style={styles.slotsTitleRow}>
                         <Clock size={14} color="#94a3b8" />
-                        <Text style={styles.slotsTitle}>Toca un horario libre para apartar:</Text>
+                        <Text style={styles.slotsTitle}>Horarios en tiempo real:</Text>
                       </View>
                       <View style={styles.legendRow}>
                         <View style={[styles.legendDot, { backgroundColor: '#10b981' }]} />
                         <Text style={styles.legendText}>Libre</Text>
                         <View style={[styles.legendDot, { backgroundColor: '#475569', marginLeft: 6 }]} />
                         <Text style={styles.legendText}>Ocupado</Text>
+                        <View style={[styles.legendDot, { backgroundColor: '#f59e0b', marginLeft: 6 }]} />
+                        <Text style={styles.legendText}>Bloqueado</Text>
                       </View>
                     </View>
 
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.slotsScroll}>
                       {cancha.horarios.map((slot) => {
+                        const isBloqueado = Boolean(slot.bloqueado);
+                        const isOcupado = !slot.disponible && !isBloqueado;
+                        const isLibre = slot.disponible && !isBloqueado;
+
                         return (
                           <TouchableOpacity
                             key={slot.id}
-                            disabled={!slot.disponible}
+                            disabled={!isLibre}
                             onPress={() => handleSlotClick(cancha, slot)}
                             style={[
                               styles.slotCard,
-                              !slot.disponible && styles.slotCardDisabled,
+                              isOcupado && styles.slotCardOcupado,
+                              isBloqueado && styles.slotCardBloqueado,
                             ]}
-                            activeOpacity={0.7}
+                            activeOpacity={isLibre ? 0.7 : 1}
                           >
-                            <Text
-                              style={[
-                                styles.slotTimeText,
-                                !slot.disponible && styles.slotTimeTextDisabled,
-                              ]}
-                            >
-                              {slot.horaInicio}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.slotPriceText,
-                                !slot.disponible && styles.slotPriceTextDisabled,
-                              ]}
-                            >
-                              {slot.disponible ? `S/ ${slot.precio}` : 'Ocupado'}
-                            </Text>
+                            <View style={styles.slotTopRow}>
+                              {isBloqueado ? (
+                                <Lock size={11} color="#94a3b8" style={{ marginRight: 3 }} />
+                              ) : null}
+                              <Text
+                                style={[
+                                  styles.slotTimeText,
+                                  isOcupado && styles.slotTimeTextOcupado,
+                                  isBloqueado && styles.slotTimeTextBloqueado,
+                                ]}
+                              >
+                                {slot.horaInicio}
+                              </Text>
+                            </View>
+
+                            {isLibre ? (
+                              <Text style={styles.slotPriceText}>S/ {slot.precio}</Text>
+                            ) : isBloqueado ? (
+                              <View style={styles.slotBloqueoReasonBadge}>
+                                <Text style={styles.slotBloqueoReasonText} numberOfLines={1}>
+                                  {slot.motivoBloqueo || 'Bloqueado'}
+                                </Text>
+                              </View>
+                            ) : (
+                              <Text style={styles.slotPriceTextOcupado}>Ocupado</Text>
+                            )}
                           </TouchableOpacity>
                         );
                       })}
@@ -321,7 +419,7 @@ export const HomePublic: React.FC<HomePublicProps> = ({
                       activeOpacity={0.8}
                     >
                       <Text style={styles.bookActionBtnText}>
-                        Apartar Horario ({primerHorarioLibre.horaInicio} • S/ {primerHorarioLibre.precio})
+                        Apartar {primerHorarioLibre.horaInicio} (S/ {primerHorarioLibre.precio})
                       </Text>
                       <CheckCircle2 size={16} color="#090d16" />
                     </TouchableOpacity>
@@ -346,6 +444,96 @@ const styles = StyleSheet.create({
   scrollContainer: {
     paddingHorizontal: 16,
     paddingTop: 12,
+  },
+  clientStatusBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#1e293b',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  clientStatusInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  clientAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  clientStatusText: {
+    color: '#94a3b8',
+    fontSize: 12,
+  },
+  misPichangasBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  misPichangasBtnText: {
+    color: '#34d399',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  clientLogoutBarBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  clientLogoutBarBtnText: {
+    color: '#f87171',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  guestNoticeBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.2)',
+  },
+  guestNoticeText: {
+    color: '#94a3b8',
+    fontSize: 11,
+    flex: 1,
+  },
+  guestLoginBtn: {
+    backgroundColor: '#38bdf8',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  guestLoginBtnText: {
+    color: '#090d16',
+    fontSize: 11,
+    fontWeight: '700',
   },
   heroCard: {
     backgroundColor: '#111827',
@@ -633,7 +821,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   featureBadgeTextNeutral: {
-    color: '#9ca3af',
+    color: '#94a3b8',
     fontSize: 11,
   },
   slotsSection: {
@@ -686,30 +874,59 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginHorizontal: 4,
     alignItems: 'center',
-    minWidth: 90,
+    minWidth: 92,
   },
-  slotCardDisabled: {
+  slotCardOcupado: {
     backgroundColor: '#1f2937',
     borderColor: '#27272a',
     opacity: 0.5,
+  },
+  slotCardBloqueado: {
+    backgroundColor: '#1e293b',
+    borderColor: '#475569',
+    opacity: 0.65,
+  },
+  slotTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
   },
   slotTimeText: {
     color: '#e5e7eb',
     fontSize: 12,
     fontWeight: '700',
-    marginBottom: 2,
   },
-  slotTimeTextDisabled: {
+  slotTimeTextOcupado: {
     color: '#6b7280',
     fontWeight: '500',
+  },
+  slotTimeTextBloqueado: {
+    color: '#94a3b8',
+    fontWeight: '600',
   },
   slotPriceText: {
     color: '#34d399',
     fontSize: 11,
     fontWeight: '700',
   },
-  slotPriceTextDisabled: {
+  slotPriceTextOcupado: {
     color: '#4b5563',
+    fontSize: 11,
+  },
+  slotBloqueoReasonBadge: {
+    backgroundColor: '#334155',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 2,
+    maxWidth: 96,
+  },
+  slotBloqueoReasonText: {
+    color: '#e2e8f0',
+    fontSize: 9,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   bookActionBtn: {
     backgroundColor: '#10b981',

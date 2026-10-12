@@ -12,9 +12,17 @@ import { HomePublic } from './src/components/HomePublic';
 import { CheckoutModal } from './src/components/CheckoutModal';
 import { AdminDashboard } from './src/components/AdminDashboard';
 import { AdminLoginModal } from './src/components/AdminLoginModal';
+import { AuthModal } from './src/components/AuthModal';
+import { MisPichangasModal } from './src/components/MisPichangasModal';
 import { INITIAL_CANCHAS, INITIAL_RESERVAS } from './src/data/mockData';
-import { Cancha, HorarioSlot, Reserva, EstadoReserva } from './src/types';
-import { ShieldCheck, User, Zap, LogOut, Lock } from 'lucide-react-native';
+import {
+  Cancha,
+  HorarioSlot,
+  Reserva,
+  EstadoReserva,
+  UsuarioCliente,
+} from './src/types';
+import { ShieldCheck, User, Zap, LogOut, Lock, History, UserCheck } from 'lucide-react-native';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import { obtenerReservasAdmin } from './src/services/reservaService';
@@ -23,6 +31,19 @@ export default function App() {
   const [currentView, setCurrentView] = useState<'cliente' | 'recepcion'>('cliente');
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [loginModalVisible, setLoginModalVisible] = useState(false);
+
+  // [US-04] Estado global del cliente logueado (inicia anónimo por defecto)
+  const [usuarioCliente, setUsuarioCliente] = useState<UsuarioCliente | null>(null);
+  const [authModalVisible, setAuthModalVisible] = useState(false);
+  const [authMotivoMensaje, setAuthMotivoMensaje] = useState<string>('');
+  const [misPichangasVisible, setMisPichangasVisible] = useState(false);
+
+  // Almacén de slot pendiente si el usuario intenta reservar sin sesión
+  const [pendingSlot, setPendingSlot] = useState<{
+    cancha: Cancha;
+    horario: HorarioSlot;
+    fecha: string;
+  } | null>(null);
 
   const [canchas, setCanchas] = useState<Cancha[]>(INITIAL_CANCHAS);
   const [reservas, setReservas] = useState<Reserva[]>(INITIAL_RESERVAS);
@@ -33,9 +54,11 @@ export default function App() {
   const [selectedHorario, setSelectedHorario] = useState<HorarioSlot | null>(null);
   const [selectedFecha, setSelectedFecha] = useState<string>('Hoy, 30 Ago');
 
-  const pendingCount = reservas.filter((r) => r.estado === 'pendiente').length;
+  const pendingCount = reservas.filter(
+    (r) => r.estado === 'pendiente' || r.estado === 'pendiente_validacion'
+  ).length;
 
-  // Escuchar estado de sesión con Firebase Auth
+  // Escuchar estado de sesión de Administrador con Firebase Auth
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -61,22 +84,27 @@ export default function App() {
             formato: r.formato || 'Fútbol 7',
             clienteNombre: r.clienteNombre || 'Cliente',
             clienteTelefono: r.clienteTelefono || '',
+            clienteEmail: r.clienteEmail,
+            clienteDni: r.clienteDni,
             fecha: r.fecha || 'Hoy, 30 Ago',
             horario: r.horario || '',
             monto: r.montoTotal || 0,
-            metodoPago: (r.metodoPago as any) || 'efectivo',
-            estado: (r.estado as any) || 'pendiente',
+            metodoPago: (r.metodoPago as any) || 'yape',
+            estado: (r.estado as any) || 'pendiente_validacion',
+            comprobanteUrl: r.comprobanteUrl,
+            origen: (r.origen as any) || 'web',
             fechaCreacion: r.fechaCreacion?.toDate ? 'Firestore' : 'Reciente',
           }));
           setReservas(reservasMapeadas);
         }
       } catch (err) {
-        console.log('Utilizando reservas locales iniciales:', err);
+        console.log('Utilizando reservas iniciales locales:', err);
       }
     };
     sincronizarReservas();
   }, []);
 
+  // [US-21] Apertura directa de Checkout si ya está autenticado
   const handleOpenCheckout = (cancha: Cancha, horario: HorarioSlot, fecha: string) => {
     setSelectedCancha(cancha);
     setSelectedHorario(horario);
@@ -84,7 +112,42 @@ export default function App() {
     setCheckoutVisible(true);
   };
 
-  const handleConfirmReserva = (nuevaReservaData: Omit<Reserva, 'id' | 'fechaCreacion'> & { id?: string }) => {
+  // [US-21] Si no está autenticado, solicitar inicio/registro
+  const handleRequireAuth = (cancha: Cancha, horario: HorarioSlot, fecha: string) => {
+    setPendingSlot({ cancha, horario, fecha });
+    setAuthMotivoMensaje(
+      `Para apartar turno en "${cancha.nombre}" (${horario.horaInicio}), inicia sesión o regístrate.`
+    );
+    setAuthModalVisible(true);
+  };
+
+  // [US-04] Callback cuando el jugador inicia sesión o se registra exitosamente
+  const handleSuccessAuth = (usuario: UsuarioCliente) => {
+    setUsuarioCliente(usuario);
+    setAuthModalVisible(false);
+
+    // Si había un slot pendiente de reserva, abrir checkout automáticamente con sus datos
+    if (pendingSlot) {
+      handleOpenCheckout(pendingSlot.cancha, pendingSlot.horario, pendingSlot.fecha);
+      setPendingSlot(null);
+    }
+  };
+
+  const handleLogoutCliente = () => {
+    Alert.alert('Cerrar Sesión de Jugador', '¿Deseas salir de tu cuenta de jugador?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Cerrar Sesión',
+        style: 'destructive',
+        onPress: () => setUsuarioCliente(null),
+      },
+    ]);
+  };
+
+  // [US-09] Confirmar reserva y actualizar estado de la cancha
+  const handleConfirmReserva = (
+    nuevaReservaData: Omit<Reserva, 'id' | 'fechaCreacion'> & { id?: string }
+  ) => {
     const nuevaReserva: Reserva = {
       ...nuevaReservaData,
       id: nuevaReservaData.id || `RES-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -100,11 +163,12 @@ export default function App() {
         if (c.id === nuevaReserva.canchaId) {
           return {
             ...c,
-            horarios: c.horarios.map((h) =>
-              `${h.horaInicio} - ${h.horaFin}` === nuevaReserva.horario
-                ? { ...h, disponible: false }
-                : h
-            ),
+            horarios: c.horarios.map((h) => {
+              const matches =
+                `${h.horaInicio} - ${h.horaFin}` === nuevaReserva.horario ||
+                nuevaReserva.horario.includes(h.horaInicio);
+              return matches ? { ...h, disponible: false } : h;
+            }),
           };
         }
         return c;
@@ -113,16 +177,12 @@ export default function App() {
 
     Alert.alert(
       '🎉 ¡Turno Apartado!',
-      `Tu reserva para ${nuevaReserva.canchaNombre} (${nuevaReserva.horario}) ha sido registrada en Firestore.`,
-      [
-        {
-          text: 'Entendido',
-          style: 'default',
-        },
-      ]
+      `Tu reserva para ${nuevaReserva.canchaNombre} (${nuevaReserva.horario}) ha quedado en estado Pendiente de Validación. El horario quedó apartado.`,
+      [{ text: 'Entendido', style: 'default' }]
     );
   };
 
+  // [US-13] Cambiar estado de reserva (Aprobar / Rechazar)
   const handleCambiarEstadoReserva = (reservaId: string, nuevoEstado: EstadoReserva) => {
     setReservas((prev) =>
       prev.map((r) => {
@@ -133,7 +193,7 @@ export default function App() {
       })
     );
 
-    // Si se rechaza, liberar el horario nuevamente
+    // Si se rechaza la reserva, liberar el horario automáticamente marcando disponible: true
     if (nuevoEstado === 'rechazada') {
       const res = reservas.find((r) => r.id === reservaId);
       if (res) {
@@ -142,11 +202,14 @@ export default function App() {
             if (c.id === res.canchaId) {
               return {
                 ...c,
-                horarios: c.horarios.map((h) =>
-                  `${h.horaInicio} - ${h.horaFin}` === res.horario
-                    ? { ...h, disponible: true }
-                    : h
-                ),
+                horarios: c.horarios.map((h) => {
+                  const matches =
+                    `${h.horaInicio} - ${h.horaFin}` === res.horario ||
+                    res.horario.includes(h.horaInicio);
+                  return matches
+                    ? { ...h, disponible: true, bloqueado: false, motivoBloqueo: undefined }
+                    : h;
+                }),
               };
             }
             return c;
@@ -154,6 +217,79 @@ export default function App() {
         );
       }
     }
+  };
+
+  // [US-14] Registro Manual Presencial / Telefónico en Admin
+  const handleCrearReservaManual = (
+    nuevaReservaData: Omit<Reserva, 'id' | 'fechaCreacion'> & { id?: string }
+  ) => {
+    const nuevaReserva: Reserva = {
+      ...nuevaReservaData,
+      id: nuevaReservaData.id || `RES-DIR-${Math.floor(1000 + Math.random() * 9000)}`,
+      fechaCreacion: 'Manual en Recepción',
+      estado: 'aprobada',
+      origen: 'presencial',
+    };
+
+    setReservas((prev) => [nuevaReserva, ...prev]);
+
+    // Ocupar slot en la grilla pública
+    setCanchas((prev) =>
+      prev.map((c) => {
+        if (c.id === nuevaReserva.canchaId) {
+          return {
+            ...c,
+            horarios: c.horarios.map((h) => {
+              const matches =
+                `${h.horaInicio} - ${h.horaFin}` === nuevaReserva.horario ||
+                nuevaReserva.horario.includes(h.horaInicio);
+              return matches ? { ...h, disponible: false } : h;
+            }),
+          };
+        }
+        return c;
+      })
+    );
+  };
+
+  // [US-15] Bloqueo por Mantenimiento o Lluvia
+  const handleBloquearSlot = (canchaId: string, slotId: string, motivo: string) => {
+    setCanchas((prev) =>
+      prev.map((c) => {
+        if (c.id === canchaId) {
+          return {
+            ...c,
+            horarios: c.horarios.map((h) =>
+              h.id === slotId
+                ? { ...h, disponible: false, bloqueado: true, motivoBloqueo: motivo }
+                : h
+            ),
+          };
+        }
+        return c;
+      })
+    );
+  };
+
+  // [US-15] Desbloquear slot
+  const handleDesbloquearSlot = (canchaId: string, slotId: string) => {
+    setCanchas((prev) =>
+      prev.map((c) => {
+        if (c.id === canchaId) {
+          return {
+            ...c,
+            horarios: c.horarios.map((h) =>
+              h.id === slotId
+                ? { ...h, disponible: true, bloqueado: false, motivoBloqueo: undefined }
+                : h
+            ),
+          };
+        }
+        return c;
+      })
+    );
+
+    Alert.alert('✅ Horario Habilitado', 'El horario vuelve a estar disponible en la grilla pública.');
   };
 
   // Manejo de cambio a Recepción con autenticación
@@ -165,33 +301,29 @@ export default function App() {
     }
   };
 
-  const handleSuccessLogin = () => {
+  const handleSuccessAdminLogin = () => {
     setIsAdminLoggedIn(true);
     setCurrentView('recepcion');
     setLoginModalVisible(false);
   };
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Cerrar Sesión',
-      '¿Deseas salir del panel de administración?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Cerrar Sesión',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOut(auth);
-            } catch (err) {
-              console.warn('Error al cerrar sesión:', err);
-            }
-            setIsAdminLoggedIn(false);
-            setCurrentView('cliente');
-          },
+  const handleLogoutAdmin = () => {
+    Alert.alert('Cerrar Sesión Admin', '¿Deseas salir del panel de recepción?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Cerrar Sesión',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await signOut(auth);
+          } catch (err) {
+            console.warn('Error al cerrar sesión:', err);
+          }
+          setIsAdminLoggedIn(false);
+          setCurrentView('cliente');
         },
-      ]
-    );
+      },
+    ]);
   };
 
   return (
@@ -206,16 +338,18 @@ export default function App() {
           </View>
           <View>
             <View style={styles.titleWithTag}>
-              <Text style={styles.brandTitle}>Cancha<Text style={styles.brandAccent}>YA</Text></Text>
+              <Text style={styles.brandTitle}>
+                Cancha<Text style={styles.brandAccent}>YA</Text>
+              </Text>
               <View style={styles.cajamarcaPill}>
                 <Text style={styles.cajamarcaPillText}>Cajamarca</Text>
               </View>
             </View>
-            <Text style={styles.brandTagline}>Disponibilidad de Canchas</Text>
+            <Text style={styles.brandTagline}>Pichangas & Reservas en Vivo</Text>
           </View>
         </View>
 
-        {/* Acceso de Administración / Switcher */}
+        {/* Acceso de Administración y Perfil de Jugador */}
         <View style={styles.rightHeaderActions}>
           {isAdminLoggedIn ? (
             <View style={styles.switcherContainer}>
@@ -224,17 +358,33 @@ export default function App() {
                 onPress={() => setCurrentView('cliente')}
               >
                 <User size={13} color={currentView === 'cliente' ? '#090d16' : '#9ca3af'} />
-                <Text style={[styles.switcherBtnText, currentView === 'cliente' && styles.switcherBtnTextActive]}>
+                <Text
+                  style={[
+                    styles.switcherBtnText,
+                    currentView === 'cliente' && styles.switcherBtnTextActive,
+                  ]}
+                >
                   Público
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.switcherBtn, currentView === 'recepcion' && styles.switcherBtnActiveAdmin]}
+                style={[
+                  styles.switcherBtn,
+                  currentView === 'recepcion' && styles.switcherBtnActiveAdmin,
+                ]}
                 onPress={() => setCurrentView('recepcion')}
               >
-                <ShieldCheck size={13} color={currentView === 'recepcion' ? '#ffffff' : '#9ca3af'} />
-                <Text style={[styles.switcherBtnText, currentView === 'recepcion' && styles.switcherBtnTextActiveAdmin]}>
+                <ShieldCheck
+                  size={13}
+                  color={currentView === 'recepcion' ? '#ffffff' : '#9ca3af'}
+                />
+                <Text
+                  style={[
+                    styles.switcherBtnText,
+                    currentView === 'recepcion' && styles.switcherBtnTextActiveAdmin,
+                  ]}
+                >
                   Admin
                 </Text>
                 {pendingCount > 0 && (
@@ -246,21 +396,62 @@ export default function App() {
 
               <TouchableOpacity
                 style={styles.logoutBtn}
-                onPress={handleLogout}
-                accessibilityLabel="Cerrar Sesión"
+                onPress={handleLogoutAdmin}
+                accessibilityLabel="Cerrar Sesión Admin"
               >
                 <LogOut size={15} color="#ef4444" />
               </TouchableOpacity>
             </View>
           ) : (
-            <TouchableOpacity
-              style={styles.adminLoginBtn}
-              onPress={handlePressRecepcion}
-              activeOpacity={0.8}
-            >
-              <Lock size={13} color="#38bdf8" />
-              <Text style={styles.adminLoginBtnText}>Acceso Admin</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {/* Acceso Jugador / Logout si está autenticado */}
+              {usuarioCliente ? (
+                <>
+                  <TouchableOpacity
+                    style={styles.playerPillBtn}
+                    onPress={() => setMisPichangasVisible(true)}
+                    activeOpacity={0.8}
+                  >
+                    <UserCheck size={12} color="#10b981" />
+                    <Text style={styles.playerPillBtnText} numberOfLines={1}>
+                      {usuarioCliente.nombre.split(' ')[0]}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.playerLogoutBtn}
+                    onPress={handleLogoutCliente}
+                    activeOpacity={0.8}
+                    accessibilityLabel="Cerrar Sesión Jugador"
+                  >
+                    <LogOut size={12} color="#f87171" />
+                    <Text style={styles.playerLogoutBtnText}>Salir</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity
+                  style={styles.authClientBtn}
+                  onPress={() => {
+                    setAuthMotivoMensaje('');
+                    setAuthModalVisible(true);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <User size={12} color="#10b981" />
+                  <Text style={styles.authClientBtnText}>Ingresar</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Botón Acceso Admin */}
+              <TouchableOpacity
+                style={styles.adminLoginBtn}
+                onPress={handlePressRecepcion}
+                activeOpacity={0.8}
+              >
+                <Lock size={12} color="#38bdf8" />
+                <Text style={styles.adminLoginBtnText}>Admin</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       </View>
@@ -270,30 +461,63 @@ export default function App() {
         {currentView === 'cliente' ? (
           <HomePublic
             canchas={canchas}
+            usuarioCliente={usuarioCliente}
             onSelectSlot={handleOpenCheckout}
+            onRequireAuth={handleRequireAuth}
+            onLogoutCliente={handleLogoutCliente}
             onOpenAdminLogin={handlePressRecepcion}
+            onOpenAuthModal={() => {
+              setAuthMotivoMensaje('');
+              setAuthModalVisible(true);
+            }}
+            onOpenMisPichangas={() => setMisPichangasVisible(true)}
           />
         ) : (
           <AdminDashboard
             reservas={reservas}
+            canchas={canchas}
             onCambiarEstadoReserva={handleCambiarEstadoReserva}
+            onCrearReservaManual={handleCrearReservaManual}
+            onBloquearSlot={handleBloquearSlot}
+            onDesbloquearSlot={handleDesbloquearSlot}
           />
         )}
       </View>
+
+      {/* Modal [US-04]: Login / Registro de Jugador */}
+      <AuthModal
+        visible={authModalVisible}
+        onClose={() => setAuthModalVisible(false)}
+        onSuccessAuth={handleSuccessAuth}
+        motivoMensaje={authMotivoMensaje}
+      />
+
+      {/* Modal [US-04]: Historial "Mis Pichangas" */}
+      <MisPichangasModal
+        visible={misPichangasVisible}
+        onClose={() => setMisPichangasVisible(false)}
+        usuarioCliente={usuarioCliente}
+        reservas={reservas}
+        onLogout={() => {
+          setMisPichangasVisible(false);
+          handleLogoutCliente();
+        }}
+      />
 
       {/* Modal de Login Administrador (Firebase Auth) */}
       <AdminLoginModal
         visible={loginModalVisible}
         onClose={() => setLoginModalVisible(false)}
-        onSuccessLogin={handleSuccessLogin}
+        onSuccessLogin={handleSuccessAdminLogin}
       />
 
-      {/* Modal de Checkout (Captura de Datos Mínimos) */}
+      {/* Modal [US-09]: Checkout con Carga de Comprobante de Adelanto */}
       <CheckoutModal
         visible={checkoutVisible}
         cancha={selectedCancha}
         horario={selectedHorario}
         fechaSeleccionada={selectedFecha}
+        usuarioCliente={usuarioCliente}
         onClose={() => setCheckoutVisible(false)}
         onConfirmReserva={handleConfirmReserva}
       />
@@ -365,22 +589,71 @@ const styles = StyleSheet.create({
   rightHeaderActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+  },
+  playerPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    maxWidth: 100,
+  },
+  playerPillBtnText: {
+    color: '#34d399',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  playerLogoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  playerLogoutBtnText: {
+    color: '#f87171',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  authClientBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#1e293b',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  authClientBtnText: {
+    color: '#10b981',
+    fontSize: 11,
+    fontWeight: '700',
   },
   adminLoginBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
     backgroundColor: 'rgba(56, 189, 248, 0.12)',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: 'rgba(56, 189, 248, 0.3)',
   },
   adminLoginBtnText: {
     color: '#38bdf8',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
   },
   switcherContainer: {
@@ -398,7 +671,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     paddingVertical: 5,
-    paddingHorizontal: 9,
+    paddingHorizontal: 8,
     borderRadius: 16,
     position: 'relative',
   },
