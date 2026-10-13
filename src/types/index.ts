@@ -35,6 +35,8 @@ export interface UsuarioCliente {
   telefono: string;
   email: string;
   dni?: string;
+  foto?: string; // URL de foto de perfil (Google OAuth)
+  rol?: 'admin' | 'recepcion' | 'cliente';
 }
 
 export interface Reserva {

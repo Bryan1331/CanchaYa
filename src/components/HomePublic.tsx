@@ -32,6 +32,7 @@ import { Cancha, HorarioSlot, TipoGrass, UsuarioCliente } from '../types';
 interface HomePublicProps {
   canchas: Cancha[];
   usuarioCliente: UsuarioCliente | null;
+  isAdmin?: boolean;
   onSelectSlot: (cancha: Cancha, horario: HorarioSlot, fecha: string) => void;
   onRequireAuth: (cancha: Cancha, horario: HorarioSlot, fecha: string) => void;
   onLogoutCliente?: () => void;
@@ -55,6 +56,7 @@ const DIAS_FILTRO = [
 export const HomePublic: React.FC<HomePublicProps> = ({
   canchas,
   usuarioCliente,
+  isAdmin = false,
   onSelectSlot,
   onRequireAuth,
   onLogoutCliente,
@@ -95,51 +97,54 @@ export const HomePublic: React.FC<HomePublicProps> = ({
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
-        {/* Banner Superior de Estado de Jugador */}
-        {usuarioCliente ? (
-          <View style={styles.clientStatusBar}>
-            <View style={styles.clientStatusInfo}>
-              <View style={styles.clientAvatar}>
-                <User size={14} color="#10b981" />
+        {/* Barra de Estado de Jugador (No se muestra si el usuario activo es el Administrador) */}
+        {!isAdmin && usuarioCliente?.rol !== 'admin' && (
+          usuarioCliente ? (
+            <View style={styles.clientStatusBar}>
+              <View style={styles.clientStatusInfo}>
+                <View style={styles.clientAvatar}>
+                  <User size={14} color="#10b981" />
+                </View>
+                <Text style={styles.clientStatusText}>
+                  Jugador: <Text style={{ color: '#f8fafc', fontWeight: '800' }}>{usuarioCliente.nombre}</Text>
+                </Text>
               </View>
-              <Text style={styles.clientStatusText}>
-                Jugador: <Text style={{ color: '#f8fafc', fontWeight: '800' }}>{usuarioCliente.nombre}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                {onOpenMisPichangas && (
+                  <TouchableOpacity
+                    style={styles.misPichangasBtn}
+                    onPress={onOpenMisPichangas}
+                    activeOpacity={0.8}
+                  >
+                    <History size={13} color="#34d399" />
+                    <Text style={styles.misPichangasBtnText}>Mis Pichangas</Text>
+                  </TouchableOpacity>
+                )}
+
+                {onLogoutCliente && (
+                  <TouchableOpacity
+                    style={styles.clientLogoutBarBtn}
+                    onPress={onLogoutCliente}
+                    activeOpacity={0.8}
+                  >
+                    <LogOut size={13} color="#f87171" />
+                    <Text style={styles.clientLogoutBarBtnText}>Salir</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          ) : (
+            <View style={styles.guestNoticeBar}>
+              <Text style={styles.guestNoticeText}>
+                👋 Consulta la disponibilidad pública en tiempo real.
               </Text>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              {onOpenMisPichangas && (
-                <TouchableOpacity
-                  style={styles.misPichangasBtn}
-                  onPress={onOpenMisPichangas}
-                  activeOpacity={0.8}
-                >
-                  <History size={13} color="#34d399" />
-                  <Text style={styles.misPichangasBtnText}>Mis Pichangas</Text>
-                </TouchableOpacity>
-              )}
-              {onLogoutCliente && (
-                <TouchableOpacity
-                  style={styles.clientLogoutBarBtn}
-                  onPress={onLogoutCliente}
-                  activeOpacity={0.8}
-                >
-                  <LogOut size={13} color="#f87171" />
-                  <Text style={styles.clientLogoutBarBtnText}>Salir</Text>
+              {onOpenAuthModal && (
+                <TouchableOpacity onPress={onOpenAuthModal} style={styles.guestLoginBtn}>
+                  <Text style={styles.guestLoginBtnText}>Iniciar Sesión</Text>
                 </TouchableOpacity>
               )}
             </View>
-          </View>
-        ) : (
-          <View style={styles.guestNoticeBar}>
-            <Text style={styles.guestNoticeText}>
-              👋 Consulta la disponibilidad pública en tiempo real.
-            </Text>
-            {onOpenAuthModal && (
-              <TouchableOpacity onPress={onOpenAuthModal} style={styles.guestLoginBtn}>
-                <Text style={styles.guestLoginBtnText}>Iniciar Sesión</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          )
         )}
 
         {/* Banner de Bienvenida */}
@@ -149,7 +154,8 @@ export const HomePublic: React.FC<HomePublicProps> = ({
               <Text style={styles.cajamarcaTagText}>📍 Cajamarca • Pichangas en Vivo</Text>
             </View>
 
-            {onOpenAdminLogin && (
+            {/* Acceso Recepción: se activa ÚNICAMENTE cuando se inicia sesión como Administrador o Recepción */}
+            {(isAdmin || usuarioCliente?.rol === 'admin' || usuarioCliente?.rol === 'recepcion') && onOpenAdminLogin && (
               <TouchableOpacity
                 style={styles.adminAccessBadge}
                 onPress={onOpenAdminLogin}

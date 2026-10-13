@@ -31,6 +31,8 @@ import {
   Phone,
   CreditCard,
   Building,
+  LogOut,
+  ArrowLeft,
 } from 'lucide-react-native';
 import { Reserva, EstadoReserva, Cancha, HorarioSlot, MetodoPago } from '../types';
 
@@ -41,6 +43,8 @@ interface AdminDashboardProps {
   onCrearReservaManual: (nuevaReserva: Omit<Reserva, 'id' | 'fechaCreacion'> & { id?: string }) => void;
   onBloquearSlot: (canchaId: string, slotId: string, motivo: string) => void;
   onDesbloquearSlot: (canchaId: string, slotId: string) => void;
+  onVolverPublico?: () => void;
+  onLogoutAdmin?: () => void;
 }
 
 const DIAS_RECEPCION = [
@@ -66,6 +70,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onCrearReservaManual,
   onBloquearSlot,
   onDesbloquearSlot,
+  onVolverPublico,
+  onLogoutAdmin,
 }) => {
   // Filtros principales
   const [diaSeleccionado, setDiaSeleccionado] = useState(DIAS_RECEPCION[0]);
@@ -240,6 +246,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
+        {/* Barra Superior de Navegación de Recepción */}
+        {(onVolverPublico || onLogoutAdmin) && (
+          <View style={styles.topNavAdmin}>
+            {onVolverPublico && (
+              <TouchableOpacity
+                style={styles.btnVolverPublico}
+                onPress={onVolverPublico}
+                activeOpacity={0.8}
+              >
+                <ArrowLeft size={13} color="#38bdf8" />
+                <Text style={styles.btnVolverPublicoText}>Ver Canchas (Público)</Text>
+              </TouchableOpacity>
+            )}
+
+            {onLogoutAdmin && (
+              <TouchableOpacity
+                style={styles.btnLogoutAdmin}
+                onPress={onLogoutAdmin}
+                activeOpacity={0.8}
+              >
+                <LogOut size={13} color="#f87171" />
+                <Text style={styles.btnLogoutAdminText}>Salir</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         {/* Header Recepción */}
         <View style={styles.header}>
           <View style={styles.badgeReception}>
@@ -912,6 +945,50 @@ const styles = StyleSheet.create({
   scrollContainer: {
     paddingHorizontal: 16,
     paddingTop: 12,
+  },
+  topNavAdmin: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    backgroundColor: '#0f172a',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#1e293b',
+  },
+  btnVolverPublico: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+  },
+  btnVolverPublicoText: {
+    color: '#38bdf8',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  btnLogoutAdmin: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  btnLogoutAdminText: {
+    color: '#f87171',
+    fontSize: 12,
+    fontWeight: '700',
   },
   header: {
     marginBottom: 14,

@@ -22,7 +22,7 @@ import {
   EstadoReserva,
   UsuarioCliente,
 } from './src/types';
-import { ShieldCheck, User, Zap, LogOut, Lock, History, UserCheck } from 'lucide-react-native';
+import { Zap } from 'lucide-react-native';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import { obtenerReservasAdmin } from './src/services/reservaService';
@@ -121,10 +121,17 @@ export default function App() {
     setAuthModalVisible(true);
   };
 
-  // [US-04] Callback cuando el jugador inicia sesión o se registra exitosamente
+  // [US-04] Callback cuando el jugador o admin inicia sesión o se registra exitosamente
   const handleSuccessAuth = (usuario: UsuarioCliente) => {
     setUsuarioCliente(usuario);
     setAuthModalVisible(false);
+
+    // Si es Administrador o Recepción, activar directamente la vista de Recepción
+    if (usuario.rol === 'admin' || usuario.rol === 'recepcion' || usuario.email.toLowerCase() === 'admin1@gmail.com') {
+      setIsAdminLoggedIn(true);
+      setCurrentView('recepcion');
+      return;
+    }
 
     // Si había un slot pendiente de reserva, abrir checkout automáticamente con sus datos
     if (pendingSlot) {
@@ -134,12 +141,16 @@ export default function App() {
   };
 
   const handleLogoutCliente = () => {
-    Alert.alert('Cerrar Sesión de Jugador', '¿Deseas salir de tu cuenta de jugador?', [
+    Alert.alert('Cerrar Sesión', '¿Deseas salir de tu cuenta?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Cerrar Sesión',
         style: 'destructive',
-        onPress: () => setUsuarioCliente(null),
+        onPress: () => {
+          setUsuarioCliente(null);
+          setIsAdminLoggedIn(false);
+          setCurrentView('cliente');
+        },
       },
     ]);
   };
@@ -320,6 +331,7 @@ export default function App() {
             console.warn('Error al cerrar sesión:', err);
           }
           setIsAdminLoggedIn(false);
+          setUsuarioCliente(null);
           setCurrentView('cliente');
         },
       },
@@ -330,129 +342,18 @@ export default function App() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#090d16" />
 
-      {/* Top Navbar & Header */}
+      {/* Top Navbar & Header (100% enfocado en Branding CanchaYA) */}
       <View style={styles.navbar}>
         <View style={styles.brandRow}>
           <View style={styles.logoBadge}>
-            <Zap size={18} color="#090d16" fill="#090d16" />
+            <Zap size={20} color="#090d16" fill="#090d16" />
           </View>
           <View>
-            <View style={styles.titleWithTag}>
-              <Text style={styles.brandTitle}>
-                Cancha<Text style={styles.brandAccent}>YA</Text>
-              </Text>
-              <View style={styles.cajamarcaPill}>
-                <Text style={styles.cajamarcaPillText}>Cajamarca</Text>
-              </View>
-            </View>
+            <Text style={styles.brandTitle}>
+              Cancha<Text style={styles.brandAccent}>YA</Text>
+            </Text>
             <Text style={styles.brandTagline}>Pichangas & Reservas en Vivo</Text>
           </View>
-        </View>
-
-        {/* Acceso de Administración y Perfil de Jugador */}
-        <View style={styles.rightHeaderActions}>
-          {isAdminLoggedIn ? (
-            <View style={styles.switcherContainer}>
-              <TouchableOpacity
-                style={[styles.switcherBtn, currentView === 'cliente' && styles.switcherBtnActive]}
-                onPress={() => setCurrentView('cliente')}
-              >
-                <User size={13} color={currentView === 'cliente' ? '#090d16' : '#9ca3af'} />
-                <Text
-                  style={[
-                    styles.switcherBtnText,
-                    currentView === 'cliente' && styles.switcherBtnTextActive,
-                  ]}
-                >
-                  Público
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.switcherBtn,
-                  currentView === 'recepcion' && styles.switcherBtnActiveAdmin,
-                ]}
-                onPress={() => setCurrentView('recepcion')}
-              >
-                <ShieldCheck
-                  size={13}
-                  color={currentView === 'recepcion' ? '#ffffff' : '#9ca3af'}
-                />
-                <Text
-                  style={[
-                    styles.switcherBtnText,
-                    currentView === 'recepcion' && styles.switcherBtnTextActiveAdmin,
-                  ]}
-                >
-                  Admin
-                </Text>
-                {pendingCount > 0 && (
-                  <View style={styles.notificationBadge}>
-                    <Text style={styles.notificationText}>{pendingCount}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.logoutBtn}
-                onPress={handleLogoutAdmin}
-                accessibilityLabel="Cerrar Sesión Admin"
-              >
-                <LogOut size={15} color="#ef4444" />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              {/* Acceso Jugador / Logout si está autenticado */}
-              {usuarioCliente ? (
-                <>
-                  <TouchableOpacity
-                    style={styles.playerPillBtn}
-                    onPress={() => setMisPichangasVisible(true)}
-                    activeOpacity={0.8}
-                  >
-                    <UserCheck size={12} color="#10b981" />
-                    <Text style={styles.playerPillBtnText} numberOfLines={1}>
-                      {usuarioCliente.nombre.split(' ')[0]}
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.playerLogoutBtn}
-                    onPress={handleLogoutCliente}
-                    activeOpacity={0.8}
-                    accessibilityLabel="Cerrar Sesión Jugador"
-                  >
-                    <LogOut size={12} color="#f87171" />
-                    <Text style={styles.playerLogoutBtnText}>Salir</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <TouchableOpacity
-                  style={styles.authClientBtn}
-                  onPress={() => {
-                    setAuthMotivoMensaje('');
-                    setAuthModalVisible(true);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <User size={12} color="#10b981" />
-                  <Text style={styles.authClientBtnText}>Ingresar</Text>
-                </TouchableOpacity>
-              )}
-
-              {/* Botón Acceso Admin */}
-              <TouchableOpacity
-                style={styles.adminLoginBtn}
-                onPress={handlePressRecepcion}
-                activeOpacity={0.8}
-              >
-                <Lock size={12} color="#38bdf8" />
-                <Text style={styles.adminLoginBtnText}>Admin</Text>
-              </TouchableOpacity>
-            </View>
-          )}
         </View>
       </View>
 
@@ -462,6 +363,7 @@ export default function App() {
           <HomePublic
             canchas={canchas}
             usuarioCliente={usuarioCliente}
+            isAdmin={isAdminLoggedIn}
             onSelectSlot={handleOpenCheckout}
             onRequireAuth={handleRequireAuth}
             onLogoutCliente={handleLogoutCliente}
@@ -480,6 +382,8 @@ export default function App() {
             onCrearReservaManual={handleCrearReservaManual}
             onBloquearSlot={handleBloquearSlot}
             onDesbloquearSlot={handleDesbloquearSlot}
+            onVolverPublico={() => setCurrentView('cliente')}
+            onLogoutAdmin={handleLogoutAdmin}
           />
         )}
       </View>
@@ -538,7 +442,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#1e293b',
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
   },
   brandRow: {
@@ -547,17 +450,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   logoBadge: {
-    width: 34,
-    height: 34,
+    width: 36,
+    height: 36,
     borderRadius: 10,
     backgroundColor: '#10b981',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  titleWithTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
   },
   brandTitle: {
     color: '#f8fafc',
@@ -568,154 +466,10 @@ const styles = StyleSheet.create({
   brandAccent: {
     color: '#10b981',
   },
-  cajamarcaPill: {
-    backgroundColor: '#1e293b',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  cajamarcaPillText: {
-    fontSize: 10,
-    color: '#34d399',
-    fontWeight: '700',
-  },
   brandTagline: {
     color: '#64748b',
-    fontSize: 10,
-    marginTop: -2,
-  },
-  rightHeaderActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  playerPillBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    maxWidth: 100,
-  },
-  playerPillBtnText: {
-    color: '#34d399',
     fontSize: 11,
-    fontWeight: '700',
-  },
-  playerLogoutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-  },
-  playerLogoutBtnText: {
-    color: '#f87171',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  authClientBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#1e293b',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  authClientBtnText: {
-    color: '#10b981',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  adminLoginBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.3)',
-  },
-  adminLoginBtnText: {
-    color: '#38bdf8',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  switcherContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1e293b',
-    borderRadius: 20,
-    padding: 3,
-    borderWidth: 1,
-    borderColor: '#334155',
-    gap: 2,
-  },
-  switcherBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    borderRadius: 16,
-    position: 'relative',
-  },
-  switcherBtnActive: {
-    backgroundColor: '#10b981',
-  },
-  switcherBtnActiveAdmin: {
-    backgroundColor: '#3b82f6',
-  },
-  switcherBtnText: {
-    color: '#94a3b8',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  switcherBtnTextActive: {
-    color: '#090d16',
-    fontWeight: '700',
-  },
-  switcherBtnTextActiveAdmin: {
-    color: '#ffffff',
-    fontWeight: '700',
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: '#ef4444',
-    width: 15,
-    height: 15,
-    borderRadius: 7.5,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#0f172a',
-  },
-  notificationText: {
-    color: '#ffffff',
-    fontSize: 8,
-    fontWeight: '800',
-  },
-  logoutBtn: {
-    padding: 6,
-    justifyContent: 'center',
-    alignItems: 'center',
+    marginTop: -1,
   },
   content: {
     flex: 1,

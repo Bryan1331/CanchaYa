@@ -109,7 +109,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
               </View>
               <TextInput
                 style={styles.input}
-                placeholder="Correo electrónico (ej: admin1@gmail.com)"
+                placeholder="Correo electrónico"
                 placeholderTextColor="#64748b"
                 autoCapitalize="none"
                 keyboardType="email-address"

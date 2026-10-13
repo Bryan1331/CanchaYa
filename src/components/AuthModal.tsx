@@ -10,6 +10,7 @@ import {
   Platform,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import {
   X,
@@ -21,7 +22,6 @@ import {
   Eye,
   EyeOff,
   UserCheck,
-  Sparkles,
   Info,
 } from 'lucide-react-native';
 import { UsuarioCliente } from '../types';
@@ -30,7 +30,7 @@ interface AuthModalProps {
   visible: boolean;
   onClose: () => void;
   onSuccessAuth: (usuario: UsuarioCliente) => void;
-  motivoMensaje?: string; // ej: "Inicia sesión para apartar tu cancha"
+  motivoMensaje?: string;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
@@ -40,6 +40,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   motivoMensaje,
 }) => {
   const [tab, setTab] = useState<'login' | 'register'>('login');
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   // Campos de Login
   const [loginEmail, setLoginEmail] = useState('');
@@ -55,40 +56,102 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const handleDemoFill = () => {
-    if (tab === 'login') {
-      setLoginEmail('rbazan@canchaya.pe');
-      setLoginPassword('pichanga123');
-      setErrorMsg('');
-    } else {
-      setNombre('Rodrigo Bazán');
-      setTelefono('976123456');
-      setEmail('rodrigo.bazan@gmail.com');
-      setDni('74859612');
-      setRegisterPassword('pichanga123');
-      setErrorMsg('');
+  // Función para extraer un nombre legible a partir del correo o teléfono
+  const extraerNombreDeIdentificador = (identificador: string): string => {
+    if (identificador.includes('@')) {
+      const alias = identificador.split('@')[0];
+      // Remover caracteres especiales y números para obtener palabras limpias
+      const limpio = alias.replace(/[._\-+]/g, ' ').replace(/[0-9]/g, '').trim();
+      if (limpio.length >= 2) {
+        return limpio
+          .split(' ')
+          .filter(Boolean)
+          .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+          .join(' ');
+      }
+      return `Jugador ${alias}`;
     }
+
+    const telLimpio = identificador.replace(/\D/g, '');
+    if (telLimpio.length >= 7) {
+      return `Jugador (${telLimpio.slice(-4)})`;
+    }
+    return `Jugador ${identificador}`;
+  };
+
+  // Flujo Optimizado para Google OAuth (US-04) - Exclusivo para Bryan Smith Arcángel Calderón
+  const handleGoogleLogin = () => {
+    setGoogleLoading(true);
+    setErrorMsg('');
+
+    setTimeout(() => {
+      const usuarioGoogle: UsuarioCliente = {
+        id: `USR-GGL-${Math.floor(1000 + Math.random() * 9000)}`,
+        nombre: 'Bryan Smith Arcángel Calderón',
+        email: 'arcasmith.1808@gmail.com',
+        telefono: '993694082',
+        dni: '75269454',
+        rol: 'cliente',
+      };
+
+      setGoogleLoading(false);
+      Alert.alert(
+        '✅ Sesión con Google Iniciada',
+        `¡Bienvenido ${usuarioGoogle.nombre}! Has ingresado correctamente con Google.`
+      );
+      onSuccessAuth(usuarioGoogle);
+      onClose();
+    }, 1000);
   };
 
   const handleLoginSubmit = () => {
     const ident = loginEmail.trim();
     const pass = loginPassword.trim();
 
-    if (!ident || !pass) {
-      setErrorMsg('Por favor completa tu correo o teléfono y contraseña.');
+    const esCorreoValido = ident.includes('@') && ident.includes('.');
+
+    if (!ident || !pass || !esCorreoValido) {
+      setErrorMsg('Por favor ingresa un correo y contraseña válidos.');
       return;
     }
 
-    // Simulación / Validación de cliente
+    const identLower = ident.toLowerCase();
+
+    // 1. Detección y Validación del Administrador (admin1@gmail.com / 123456)
+    if (identLower === 'admin1@gmail.com') {
+      if (pass !== '123456') {
+        setErrorMsg('Contraseña de administrador incorrecta.');
+        return;
+      }
+
+      const usuarioAdmin: UsuarioCliente = {
+        id: 'USR-ADMIN-01',
+        nombre: 'Administrador CanchaYa',
+        email: 'admin1@gmail.com',
+        rol: 'admin',
+        telefono: '993694082',
+        dni: '75269454',
+      };
+
+      setErrorMsg('');
+      onSuccessAuth(usuarioAdmin);
+      onClose();
+      return;
+    }
+
+    // 2. Login de Jugador Normal: extraer nombre dinámico según su correo
+    const nombreGenerado = extraerNombreDeIdentificador(ident);
+
     const usuarioLogueado: UsuarioCliente = {
       id: `USR-${Math.floor(1000 + Math.random() * 9000)}`,
-      nombre: ident.includes('@') ? ident.split('@')[0].replace('.', ' ') : 'Jugador CanchaYa',
-      email: ident.includes('@') ? ident : `${ident}@canchaya.pe`,
-      telefono: ident.startsWith('9') && ident.length === 9 ? ident : '976123456',
-      dni: '74859612',
+      nombre: nombreGenerado,
+      email: ident,
+      telefono: '9' + Math.floor(10000000 + Math.random() * 90000000),
+      rol: 'cliente',
     };
 
     setErrorMsg('');
+    Alert.alert('⚽ ¡Sesión Iniciada!', `¡Hola ${usuarioLogueado.nombre}! Listo para apartar tu cancha.`);
     onSuccessAuth(usuarioLogueado);
     onClose();
   };
@@ -131,6 +194,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       telefono: tel,
       email: em,
       dni: doc,
+      rol: 'cliente',
     };
 
     setErrorMsg('');
@@ -167,7 +231,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          {/* Mensaje de Contexto (si viene por reservar) */}
+          {/* Mensaje de Contexto */}
           {motivoMensaje ? (
             <View style={styles.motivoBanner}>
               <Info size={14} color="#38bdf8" />
@@ -217,8 +281,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <Mail size={16} color="#64748b" style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
-                    placeholder="Correo o Celular"
+                    placeholder="Correo Electrónico"
                     placeholderTextColor="#64748b"
+                    keyboardType="email-address"
                     autoCapitalize="none"
                     value={loginEmail}
                     onChangeText={(text) => {
@@ -252,9 +317,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <TouchableOpacity style={styles.submitBtn} onPress={handleLoginSubmit}>
                   <Text style={styles.submitBtnText}>Entrar a mi Cuenta</Text>
                 </TouchableOpacity>
+
+                {/* Separador OR */}
+                <View style={styles.orRow}>
+                  <View style={styles.orLine} />
+                  <Text style={styles.orText}>o</Text>
+                  <View style={styles.orLine} />
+                </View>
+
+                {/* Botón Google */}
+                <TouchableOpacity
+                  style={[styles.googleBtn, googleLoading && styles.googleBtnDisabled]}
+                  onPress={handleGoogleLogin}
+                  disabled={googleLoading}
+                  activeOpacity={0.8}
+                >
+                  {googleLoading ? (
+                    <ActivityIndicator size="small" color="#4285F4" />
+                  ) : (
+                    <View style={styles.googleBtnGBadge}>
+                      <Text style={styles.googleBtnGLetter}>G</Text>
+                    </View>
+                  )}
+                  <Text style={styles.googleBtnText}>
+                    {googleLoading ? 'Autenticando...' : 'Continuar con Google'}
+                  </Text>
+                </TouchableOpacity>
               </View>
             ) : (
-              /* FORMULARIO DE REGISTRO COMPLETO */
+              /* FORMULARIO DE REGISTRO */
               <View style={styles.form}>
                 <View style={styles.inputGroup}>
                   <User size={16} color="#64748b" style={styles.inputIcon} />
@@ -342,16 +433,34 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <TouchableOpacity style={styles.submitBtn} onPress={handleRegisterSubmit}>
                   <Text style={styles.submitBtnText}>Crear mi Cuenta de Jugador</Text>
                 </TouchableOpacity>
+
+                {/* Separador OR */}
+                <View style={styles.orRow}>
+                  <View style={styles.orLine} />
+                  <Text style={styles.orText}>o regístrate con</Text>
+                  <View style={styles.orLine} />
+                </View>
+
+                {/* Botón Google */}
+                <TouchableOpacity
+                  style={[styles.googleBtn, googleLoading && styles.googleBtnDisabled]}
+                  onPress={handleGoogleLogin}
+                  disabled={googleLoading}
+                  activeOpacity={0.8}
+                >
+                  {googleLoading ? (
+                    <ActivityIndicator size="small" color="#4285F4" />
+                  ) : (
+                    <View style={styles.googleBtnGBadge}>
+                      <Text style={styles.googleBtnGLetter}>G</Text>
+                    </View>
+                  )}
+                  <Text style={styles.googleBtnText}>
+                    {googleLoading ? 'Autenticando...' : 'Continuar con Google'}
+                  </Text>
+                </TouchableOpacity>
               </View>
             )}
-
-            {/* Botón Demo Rápido */}
-            <TouchableOpacity style={styles.demoBtn} onPress={handleDemoFill}>
-              <Sparkles size={14} color="#34d399" />
-              <Text style={styles.demoBtnText}>
-                Autocompletar Datos de Prueba (Demo)
-              </Text>
-            </TouchableOpacity>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -460,7 +569,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   formScroll: {
-    maxHeight: 380,
+    maxHeight: 480,
   },
   form: {
     width: '100%',
@@ -518,22 +627,60 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  demoBtn: {
+  orRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 14,
+    marginBottom: 10,
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#1e293b',
+  },
+  orText: {
+    color: '#475569',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  googleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    gap: 10,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    height: 46,
     borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-    paddingVertical: 8,
-    borderRadius: 10,
-    marginTop: 12,
-    marginBottom: 6,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+    marginBottom: 10,
   },
-  demoBtnText: {
-    color: '#34d399',
-    fontSize: 12,
-    fontWeight: '600',
+  googleBtnDisabled: {
+    opacity: 0.55,
+  },
+  googleBtnGBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    backgroundColor: '#4285F4',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  googleBtnGLetter: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '900',
+    lineHeight: 17,
+  },
+  googleBtnText: {
+    color: '#1e293b',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

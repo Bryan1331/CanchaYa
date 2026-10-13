@@ -4,8 +4,10 @@
   "main": "index.ts",
   "dependencies": {
     "expo": "^57.0.0",
+    "expo-auth-session": "~57.0.15",
     "expo-image-picker": "~57.0.20",
     "expo-status-bar": "~57.0.1",
+    "expo-web-browser": "~57.0.3",
     "firebase": "^12.18.0",
     "lucide-react-native": "^1.37.0",
     "react": "19.2.3",
