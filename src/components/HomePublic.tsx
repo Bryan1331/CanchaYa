@@ -967,3 +967,29 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+/*import React from 'react';
+import { View, Text, Button, FlatList } from 'react-native';
+
+const canchasBonitas = ['Opción 1', 'Opción 2', 'Opción 3', 'Opción 4'];
+
+export const ListaScreen = ({ onVolver }: { onVolver: () => void }) => {
+  return (
+    <View style={{ flex: 1, padding: 20 }}>
+      <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 10 }}>
+        Canchas Bonitas
+      </Text>
+
+      <FlatList
+        data={canchasBonitas}
+        keyExtractor={(item) => item}
+        renderItem={({ item }) => (
+          <Text style={{ fontSize: 16, marginVertical: 8 }}>• {item}</Text>
+        )}
+      />
+
+      <Button title="Volver al Inicio" onPress={onVolver} />
+    </View>
+  );
+};*/
+

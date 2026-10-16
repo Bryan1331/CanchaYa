@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,8 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
 import {
   X,
   User,
@@ -25,6 +27,8 @@ import {
   Info,
 } from 'lucide-react-native';
 import { UsuarioCliente } from '../types';
+
+WebBrowser.maybeCompleteAuthSession();
 
 interface AuthModalProps {
   visible: boolean;
@@ -40,7 +44,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   motivoMensaje,
 }) => {
   const [tab, setTab] = useState<'login' | 'register'>('login');
-  const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Configuración directa de Google OAuth Client IDs
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    iosClientId: '857084170287-oj738440gac6ukbljf3v2g12uc1ip1fn.apps.googleusercontent.com',
+    androidClientId: '857084170287-le3ou5oj2tf0glli499sk76lh5kqgjvu.apps.googleusercontent.com',
+    webClientId: '857084170287-le3ou5oj2tf0glli499sk76lh5kqgjvu.apps.googleusercontent.com',
+  });
 
   // Campos de Login
   const [loginEmail, setLoginEmail] = useState('');
@@ -56,11 +66,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Función para extraer un nombre legible a partir del correo o teléfono
+  // Evita re-procesar la misma respuesta de Google en cada re-render (bucle de auto-login).
+  const processedResponseRef = useRef(false);
+
+  // Formatear nombre dinámico para clientes
   const extraerNombreDeIdentificador = (identificador: string): string => {
     if (identificador.includes('@')) {
       const alias = identificador.split('@')[0];
-      // Remover caracteres especiales y números para obtener palabras limpias
       const limpio = alias.replace(/[._\-+]/g, ' ').replace(/[0-9]/g, '').trim();
       if (limpio.length >= 2) {
         return limpio
@@ -79,31 +91,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     return `Jugador ${identificador}`;
   };
 
-  // Flujo Optimizado para Google OAuth (US-04) - Exclusivo para Bryan Smith Arcángel Calderón
-  const handleGoogleLogin = () => {
-    setGoogleLoading(true);
-    setErrorMsg('');
-
-    setTimeout(() => {
-      const usuarioGoogle: UsuarioCliente = {
-        id: `USR-GGL-${Math.floor(1000 + Math.random() * 9000)}`,
-        nombre: 'Bryan Smith Arcángel Calderón',
-        email: 'arcasmith.1808@gmail.com',
-        telefono: '993694082',
-        dni: '75269454',
-        rol: 'cliente',
-      };
-
-      setGoogleLoading(false);
-      Alert.alert(
-        '✅ Sesión con Google Iniciada',
-        `¡Bienvenido ${usuarioGoogle.nombre}! Has ingresado correctamente con Google.`
-      );
-      onSuccessAuth(usuarioGoogle);
-      onClose();
-    }, 1000);
-  };
-
   const handleLoginSubmit = () => {
     const ident = loginEmail.trim();
     const pass = loginPassword.trim();
@@ -117,7 +104,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     const identLower = ident.toLowerCase();
 
-    // 1. Detección y Validación del Administrador (admin1@gmail.com / 123456)
+    // Detección del Admin (admin1@gmail.com / 123456)
     if (identLower === 'admin1@gmail.com') {
       if (pass !== '123456') {
         setErrorMsg('Contraseña de administrador incorrecta.');
@@ -139,7 +126,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    // 2. Login de Jugador Normal: extraer nombre dinámico según su correo
+    // Login de Jugador Normal
     const nombreGenerado = extraerNombreDeIdentificador(ident);
 
     const usuarioLogueado: UsuarioCliente = {
@@ -159,7 +146,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const handleRegisterSubmit = () => {
     const nom = nombre.trim();
     const tel = telefono.trim();
-    const em = email.trim();
+    const em = email.trim().toLowerCase();
     const doc = dni.trim();
     const pass = registerPassword.trim();
 
@@ -178,8 +165,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    if (!em.includes('@') || !em.includes('.')) {
-      setErrorMsg('Por favor ingresa un correo electrónico válido.');
+    // Restricción obligatoria a dominios @gmail.com
+    if (!em.endsWith('@gmail.com')) {
+      setErrorMsg('El registro solo está permitido para correos @gmail.com.');
       return;
     }
 
@@ -207,6 +195,88 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setErrorMsg('');
     onClose();
   };
+
+  // Al iniciar un intento explícito con Google, permitimos procesar una nueva respuesta.
+  const handleGooglePress = () => {
+    processedResponseRef.current = false;
+    promptAsync();
+  };
+
+  // Manejo del resultado de Google OAuth (flujo de autenticación del jugador)
+  useEffect(() => {
+    if (!response) return;
+
+    // Si la respuesta ya fue procesada, no volver a autenticar.
+    if (processedResponseRef.current) return;
+
+    if (response.type === 'success') {
+      processedResponseRef.current = true;
+
+      const googleToken =
+        response.authentication?.accessToken ??
+        response.authentication?.idToken ??
+        response.params?.access_token ??
+        response.params?.id_token;
+
+      // Obtener nombre y correo reales desde Google userinfo.
+      const cargarUsuarioGoogle = async () => {
+        let nombreGoogle = 'Jugador Google';
+        let emailGoogle = 'jugador.google@gmail.com';
+
+        if (googleToken) {
+          try {
+            const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+              headers: {
+                Authorization: `Bearer ${googleToken}`,
+              },
+            });
+
+            if (resp.ok) {
+              const data = (await resp.json()) as { name?: string; email?: string };
+              if (data?.name) nombreGoogle = data.name;
+              if (data?.email) emailGoogle = data.email;
+            } else {
+              console.warn('Google userinfo respondió con estado:', resp.status);
+            }
+          } catch (err) {
+            console.error('No se pudo obtener el perfil de Google:', err);
+          }
+        }
+
+        const usuarioGoogle: UsuarioCliente = {
+          id: `USR-GOOGLE-${Math.floor(1000 + Math.random() * 9000)}`,
+          nombre: nombreGoogle,
+          email: emailGoogle,
+          telefono: '993693082',
+          dni: '75269454',
+          rol: 'cliente',
+        };
+
+        setErrorMsg('');
+        onSuccessAuth(usuarioGoogle);
+        onClose();
+      };
+
+      cargarUsuarioGoogle();
+      return;
+    }
+
+    if (response.type === 'error') {
+      processedResponseRef.current = true;
+
+      const googleCode =
+        (response.error as any)?.error ||
+        response.params?.error ||
+        'error';
+      const googleDescription =
+        (response.error as any)?.description ||
+        response.params?.error_description ||
+        'Google bloqueó o rechazó la autorización. Revisa el redirect URI y los usuarios de prueba.';
+      setErrorMsg(`Google (${googleCode}): ${googleDescription}`);
+      console.error('Google OAuth response bloqueada:', JSON.stringify(response, null, 2));
+      console.log('Google redirect URI utilizado:', request?.redirectUri);
+    }
+  }, [response, onSuccessAuth, onClose]);
 
   return (
     <Modal visible={visible} animationType="fade" transparent={true} onRequestClose={handleClose}>
@@ -325,24 +395,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <View style={styles.orLine} />
                 </View>
 
-                {/* Botón Google */}
+                {/* Botón Google OAuth */}
                 <TouchableOpacity
-                  style={[styles.googleBtn, googleLoading && styles.googleBtnDisabled]}
-                  onPress={handleGoogleLogin}
-                  disabled={googleLoading}
+                  style={[styles.googleBtn, !request && styles.googleBtnDisabled]}
+                  onPress={handleGooglePress}
+                  disabled={!request}
                   activeOpacity={0.8}
                 >
-                  {googleLoading ? (
-                    <ActivityIndicator size="small" color="#4285F4" />
-                  ) : (
-                    <View style={styles.googleBtnGBadge}>
-                      <Text style={styles.googleBtnGLetter}>G</Text>
-                    </View>
-                  )}
-                  <Text style={styles.googleBtnText}>
-                    {googleLoading ? 'Autenticando...' : 'Continuar con Google'}
-                  </Text>
+                  <View style={styles.googleBtnGBadge}>
+                    <Text style={styles.googleBtnGLetter}>G</Text>
+                  </View>
+                  <Text style={styles.googleBtnText}>Continuar con Google</Text>
                 </TouchableOpacity>
+
               </View>
             ) : (
               /* FORMULARIO DE REGISTRO */
@@ -381,7 +446,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <Mail size={16} color="#64748b" style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
-                    placeholder="Correo Electrónico"
+                    placeholder="Correo Electrónico (@gmail.com)"
                     placeholderTextColor="#64748b"
                     keyboardType="email-address"
                     autoCapitalize="none"
@@ -441,24 +506,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <View style={styles.orLine} />
                 </View>
 
-                {/* Botón Google */}
+                {/* Botón Google OAuth */}
                 <TouchableOpacity
-                  style={[styles.googleBtn, googleLoading && styles.googleBtnDisabled]}
-                  onPress={handleGoogleLogin}
-                  disabled={googleLoading}
+                  style={[styles.googleBtn, !request && styles.googleBtnDisabled]}
+                  onPress={handleGooglePress}
+                  disabled={!request}
                   activeOpacity={0.8}
                 >
-                  {googleLoading ? (
-                    <ActivityIndicator size="small" color="#4285F4" />
-                  ) : (
-                    <View style={styles.googleBtnGBadge}>
-                      <Text style={styles.googleBtnGLetter}>G</Text>
-                    </View>
-                  )}
-                  <Text style={styles.googleBtnText}>
-                    {googleLoading ? 'Autenticando...' : 'Continuar con Google'}
-                  </Text>
+                  <View style={styles.googleBtnGBadge}>
+                    <Text style={styles.googleBtnGLetter}>G</Text>
+                  </View>
+                  <Text style={styles.googleBtnText}>Continuar con Google</Text>
                 </TouchableOpacity>
+
               </View>
             )}
           </ScrollView>

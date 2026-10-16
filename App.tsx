@@ -366,7 +366,7 @@ export default function App() {
             isAdmin={isAdminLoggedIn}
             onSelectSlot={handleOpenCheckout}
             onRequireAuth={handleRequireAuth}
-            onLogoutCliente={handleLogoutCliente}
+            onLogoutCliente={() => setUsuarioCliente(null)}
             onOpenAdminLogin={handlePressRecepcion}
             onOpenAuthModal={() => {
               setAuthMotivoMensaje('');
