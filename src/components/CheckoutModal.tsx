@@ -24,14 +24,16 @@ import {
   Calendar,
   Camera,
   ImageIcon,
-  QrCode,
   Sparkles,
   Trash2,
   CreditCard,
+  Building,
+  DollarSign,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Cancha, HorarioSlot, Reserva, UsuarioCliente, MetodoPago } from '../types';
 import { crearReserva } from '../services/reservaService';
+import { calcularTarifaDinamica } from '../utils/pricing';
 
 interface CheckoutModalProps {
   visible: boolean;
@@ -46,7 +48,7 @@ interface CheckoutModalProps {
 const MOCK_VOUCHER_DEMO =
   'https://images.unsplash.com/photo-1580048915913-4f8f5cb481c4?auto=format&fit=crop&w=600&q=80';
 
-const NUMERO_RECEPCION_WHATSAPP = '51999888777'; // Número ficticio de pruebas (US-09)
+const NUMERO_RECEPCION_WHATSAPP = '51999888777'; // Número de recepción en Cajamarca
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   visible,
@@ -78,6 +80,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   }, [usuarioCliente, visible]);
 
   if (!cancha || !horario) return null;
+
+  // [US-16] Cálculo de Dynamic Pricing para el horario y fecha elegida
+  const tarifaInfo = calcularTarifaDinamica(cancha, horario, fechaSeleccionada);
 
   // Selección de foto desde Galería
   const handleSeleccionarGaleria = async () => {
@@ -178,7 +183,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         canchaNombre: cancha.nombre,
         fecha: fechaSeleccionada,
         horario: `${horario.horaInicio} - ${horario.horaFin}`,
-        montoTotal: horario.precio,
+        montoTotal: tarifaInfo.precioTotal,
         canchaId: cancha.id,
         tipoGrass: cancha.tipoGrass,
         formato: cancha.formato,
@@ -188,9 +193,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         origen: 'web',
       });
 
-      // 2. Notificar al estado central de la app
+      // 2. Notificar al estado central de la app con los montos dinámicos
       onConfirmReserva({
         id: reservaCreada.id,
+        localId: cancha.localId ?? cancha.id,
         canchaId: cancha.id,
         canchaNombre: cancha.nombre,
         tipoGrass: cancha.tipoGrass,
@@ -201,27 +207,34 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         clienteDni: dni.trim(),
         fecha: fechaSeleccionada,
         horario: `${horario.horaInicio} - ${horario.horaFin}`,
-        monto: horario.precio,
+        monto: tarifaInfo.precioTotal,
+        montoTotal: tarifaInfo.precioTotal,
+        montoAdelanto: tarifaInfo.montoAdelanto,
+        saldoPendiente: tarifaInfo.saldoPendiente,
         metodoPago: metodoPago,
         estado: 'pendiente_validacion',
         comprobanteUrl: comprobanteFinal,
         origen: 'web',
       });
 
-      // 3. Enviar mensaje formateado a WhatsApp de recepción
+      // 3. Enviar mensaje formateado a WhatsApp de recepción con desglose de adelanto y saldo
       const mensajeWhatsApp =
         `*¡Hola Recepción CanchaYa Cajamarca!* ⚽🔥\n` +
         `Acabo de registrar una reserva con comprobante adjunto:\n\n` +
         `🏟️ *Cancha:* ${cancha.nombre}\n` +
-        `📍 *Sector:* ${cancha.sector}\n` +
+        `🏢 *Local:* ${cancha.establecimiento || cancha.localNombre}\n` +
+        `📍 *Sector:* ${cancha.direccion || cancha.sector}\n` +
         `📅 *Fecha:* ${fechaSeleccionada}\n` +
         `🕒 *Horario:* ${horario.horaInicio} - ${horario.horaFin}\n` +
-        `💰 *Monto Total:* S/ ${horario.precio}.00\n` +
+        `⚡ *Tarifa Aplicada:* ${tarifaInfo.etiquetaTarifa}\n` +
+        `💰 *Monto Total del Turno:* S/ ${tarifaInfo.precioTotal}.00\n` +
+        `💵 *Adelanto Validado (50%):* S/ ${tarifaInfo.montoAdelanto}.00\n` +
+        `📌 *Saldo a Pagar en Cancha:* S/ ${tarifaInfo.saldoPendiente}.00\n` +
         `👤 *Cliente:* ${nombreLimpio}\n` +
         `📱 *Celular:* ${telefonoLimpio}\n` +
         `💳 *Método:* ${metodoPago.toUpperCase()}\n` +
         `📋 *Estado:* Pendiente de Validación\n\n` +
-        `Por favor validar el comprobante para confirmar mi turno. ¡Muchas gracias!`;
+        `Adjunto mi captura para la confirmación de la cancha. ¡Gracias!`;
 
       const whatsappUrl = `https://wa.me/${NUMERO_RECEPCION_WHATSAPP}?text=${encodeURIComponent(
         mensajeWhatsApp
@@ -270,15 +283,25 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           </View>
 
           <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            {/* Resumen del Turno */}
+            {/* [US-16] Resumen del Turno con Tarifas Dinámicas */}
             <View style={styles.resumenCard}>
               <View style={styles.resumenHeader}>
-                <Text style={styles.canchaNombre} numberOfLines={1}>
-                  {cancha.nombre}
-                </Text>
-                <View style={styles.precioBadge}>
-                  <Text style={styles.precioText}>S/ {horario.precio}.00</Text>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={styles.canchaNombre} numberOfLines={1}>
+                    {cancha.nombre}
+                  </Text>
+                  <Text style={styles.canchaLocalNombre}>{cancha.establecimiento || cancha.localNombre}</Text>
                 </View>
+                <View style={styles.precioBadge}>
+                  <Text style={styles.precioTotalLabel}>TOTAL</Text>
+                  <Text style={styles.precioText}>S/ {tarifaInfo.precioTotal}.00</Text>
+                </View>
+              </View>
+
+              {/* Tag de Tarifa Dinámica */}
+              <View style={styles.tagTarifaBox}>
+                <Sparkles size={12} color="#10b981" />
+                <Text style={styles.tagTarifaText}>{tarifaInfo.etiquetaTarifa}</Text>
               </View>
 
               <View style={styles.divider} />
@@ -309,12 +332,30 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   </Text>
                 </View>
               </View>
+
+              {/* Desglose de Adelanto (50%) vs Saldo en Cancha [US-16] */}
+              <View style={styles.adelantoBanner}>
+                <View style={styles.adelantoBannerCol}>
+                  <Text style={styles.adelantoBannerLabel}>Adelanto Requerido (50%):</Text>
+                  <Text style={styles.adelantoBannerValueHighlight}>
+                    S/ {tarifaInfo.montoAdelanto}.00
+                  </Text>
+                </View>
+                <View style={styles.adelantoBannerCol}>
+                  <Text style={styles.adelantoBannerLabel}>Saldo a pagar en Cancha:</Text>
+                  <Text style={styles.adelantoBannerValue}>S/ {tarifaInfo.saldoPendiente}.00</Text>
+                </View>
+              </View>
             </View>
 
-            {/* SECCIÓN [US-09]: PAGO POR YAPE / PLIN Y COMPROBANTE */}
+            {/* SECCIÓN [US-09]: PAGO DE ADELANTO POR YAPE / PLIN */}
             <Text style={styles.sectionTitle}>1. Pago de Adelanto (Yape / Plin)</Text>
             <Text style={styles.sectionSubtitle}>
-              Monto a pagar: <Text style={{ color: '#34d399', fontWeight: '700' }}>S/ {horario.precio}.00</Text> a la cuenta oficial del local.
+              Transfiere únicamente el adelanto de{' '}
+              <Text style={{ color: '#34d399', fontWeight: '800' }}>
+                S/ {tarifaInfo.montoAdelanto}.00
+              </Text>{' '}
+              a la cuenta oficial del complejo.
             </Text>
 
             {/* Selector de Método */}
@@ -355,10 +396,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     >
                       <Text style={styles.metodoPillSmallText}>{metodoPago.toUpperCase()}</Text>
                     </View>
-                    <Text style={styles.montoLabelMini}>Monto a transferir:</Text>
+                    <Text style={styles.montoLabelMini}>Adelanto a pagar ahora:</Text>
                   </View>
-                  <Text style={styles.montoDestacadoText}>S/ {horario.precio}.00</Text>
-                  <Text style={styles.paymentInfoTitular}>Titular: CanchaYa Cajamarca S.A.C.</Text>
+                  <Text style={styles.montoDestacadoText}>S/ {tarifaInfo.montoAdelanto}.00</Text>
+                  <Text style={styles.paymentInfoTitular}>Titular: {cancha.establecimiento || cancha.localNombre}</Text>
                   <Text style={styles.paymentInfoNumero}>
                     Número oficial: <Text style={{ color: '#34d399', fontWeight: '800' }}>976 543 210</Text>
                   </Text>
@@ -378,7 +419,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </View>
               </View>
               <Text style={styles.paymentInfoHint}>
-                ⚡ Paga desde tu app de {metodoPago.toUpperCase()} y toma captura al comprobante.
+                ⚡ Paga el adelanto desde tu app de {metodoPago.toUpperCase()} y adjunta el comprobante.
               </Text>
             </View>
 
@@ -491,7 +532,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <View style={styles.guaranteeBox}>
               <ShieldCheck size={16} color="#10b981" />
               <Text style={styles.guaranteeText}>
-                Tu reserva se registrará en estado <Text style={{ color: '#fbbf24', fontWeight: '700' }}>Pendiente de Validación</Text> y se abrirá WhatsApp con el mensaje preformateado para recepción.
+                Tu turno se aparta con el 50% de adelanto. El saldo de S/ {tarifaInfo.saldoPendiente}.00 se cancela en la recepción del local.
               </Text>
             </View>
 
@@ -513,7 +554,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </>
               ) : (
                 <>
-                  <Text style={styles.confirmBtnText}>Confirmar & Enviar por WhatsApp</Text>
+                  <Text style={styles.confirmBtnText}>
+                    Confirmar Adelanto (S/ {tarifaInfo.montoAdelanto})
+                  </Text>
                   <CheckCircle2 size={18} color="#0f172a" />
                 </>
               )}
@@ -528,7 +571,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    backgroundColor: 'rgba(9, 13, 22, 0.85)',
     justifyContent: 'flex-end',
   },
   container: {
@@ -538,7 +581,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#334155',
     maxHeight: '92%',
-    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 14,
   },
   header: {
     flexDirection: 'row',
@@ -570,45 +613,68 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 14,
   },
   resumenCard: {
     backgroundColor: '#1e293b',
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: 18,
+    padding: 16,
+    marginTop: 14,
     borderWidth: 1,
     borderColor: '#334155',
-    marginBottom: 14,
   },
   resumenHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   canchaNombre: {
     fontSize: 15,
+    fontWeight: '800',
+    color: '#f8fafc',
+  },
+  canchaLocalNombre: {
+    fontSize: 11,
+    color: '#10b981',
     fontWeight: '700',
-    color: '#f1f5f9',
-    flex: 1,
-    marginRight: 10,
+    marginTop: 2,
   },
   precioBadge: {
-    backgroundColor: '#064e3b',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#10b981',
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  precioTotalLabel: {
+    color: '#94a3b8',
+    fontSize: 9,
+    fontWeight: '700',
   },
   precioText: {
+    color: '#10b981',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  tagTarifaBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#0f172a',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+  },
+  tagTarifaText: {
     color: '#34d399',
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: '700',
   },
   divider: {
     height: 1,
     backgroundColor: '#334155',
-    marginVertical: 10,
+    marginVertical: 12,
   },
   resumenDetailsRow: {
     flexDirection: 'row',
@@ -621,63 +687,92 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   detailLabel: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#94a3b8',
-    textTransform: 'uppercase',
   },
   detailValue: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#e2e8f0',
+    fontWeight: '700',
+    color: '#f8fafc',
   },
   detailValueGrass: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#10b981',
+    fontWeight: '700',
+    color: '#34d399',
+  },
+  adelantoBanner: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: '#0f172a',
+    padding: 10,
+    borderRadius: 10,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  adelantoBannerCol: {
+    flex: 1,
+  },
+  adelantoBannerLabel: {
+    color: '#94a3b8',
+    fontSize: 10,
+    marginBottom: 2,
+  },
+  adelantoBannerValueHighlight: {
+    color: '#34d399',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  adelantoBannerValue: {
+    color: '#cbd5e1',
+    fontSize: 14,
+    fontWeight: '800',
   },
   sectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#cbd5e1',
-    marginBottom: 2,
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#f8fafc',
+    marginTop: 16,
+    marginBottom: 4,
   },
   sectionSubtitle: {
     fontSize: 12,
     color: '#94a3b8',
     marginBottom: 10,
+    lineHeight: 16,
   },
   metodosRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 10,
+    gap: 12,
+    marginBottom: 12,
   },
   metodoCard: {
     flex: 1,
     backgroundColor: '#1e293b',
-    borderRadius: 12,
-    padding: 10,
+    borderRadius: 14,
+    padding: 12,
     borderWidth: 1.5,
     borderColor: '#334155',
     alignItems: 'center',
   },
   metodoCardActiveYape: {
-    borderColor: '#d946ef',
-    backgroundColor: 'rgba(217, 70, 239, 0.1)',
+    borderColor: '#a855f7',
+    backgroundColor: 'rgba(112, 26, 117, 0.2)',
   },
   metodoCardActivePlin: {
     borderColor: '#0284c7',
-    backgroundColor: 'rgba(2, 132, 199, 0.1)',
+    backgroundColor: 'rgba(2, 132, 199, 0.2)',
   },
   metodoIconCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   metodoIconText: {
     fontSize: 14,
@@ -685,7 +780,8 @@ const styles = StyleSheet.create({
   metodoTitle: {
     color: '#f8fafc',
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
   metodoPhone: {
     color: '#94a3b8',
@@ -693,36 +789,27 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   paymentInfoCard: {
-    backgroundColor: '#090d16',
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: '#1e293b',
+    borderRadius: 16,
+    padding: 14,
     borderWidth: 1,
-    borderColor: '#1e293b',
-    marginBottom: 10,
+    borderColor: '#334155',
+    marginBottom: 6,
   },
   paymentInfoTop: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  paymentInfoTitular: {
-    color: '#e2e8f0',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  paymentInfoNumero: {
-    color: '#94a3b8',
-    fontSize: 12,
-    marginTop: 2,
-  },
   metodoPillSmall: {
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 6,
   },
   metodoPillSmallText: {
     color: '#ffffff',
-    fontSize: 9,
-    fontWeight: '800',
+    fontSize: 10,
+    fontWeight: '900',
   },
   montoLabelMini: {
     color: '#94a3b8',
@@ -730,21 +817,28 @@ const styles = StyleSheet.create({
   },
   montoDestacadoText: {
     color: '#34d399',
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '900',
-    marginBottom: 4,
+    marginVertical: 4,
+  },
+  paymentInfoTitular: {
+    color: '#cbd5e1',
+    fontSize: 11,
+  },
+  paymentInfoNumero: {
+    color: '#94a3b8',
+    fontSize: 11,
+    marginTop: 2,
   },
   qrImageContainer: {
     alignItems: 'center',
     backgroundColor: '#ffffff',
     padding: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderRadius: 12,
   },
   qrImage: {
-    width: 72,
-    height: 72,
+    width: 75,
+    height: 75,
   },
   qrCaptionText: {
     color: '#090d16',
@@ -753,17 +847,15 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   paymentInfoHint: {
-    color: '#64748b',
+    color: '#94a3b8',
     fontSize: 11,
-    marginTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#1e293b',
-    paddingTop: 6,
+    marginTop: 10,
+    fontStyle: 'italic',
   },
   voucherPickerRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 10,
+    gap: 10,
+    marginTop: 6,
   },
   voucherOptionBtn: {
     flex: 1,
@@ -772,44 +864,44 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     backgroundColor: '#1e293b',
-    borderRadius: 10,
-    paddingVertical: 10,
+    paddingVertical: 12,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#334155',
   },
   voucherOptionDemoBtn: {
     borderColor: 'rgba(56, 189, 248, 0.4)',
-    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
   },
   voucherOptionText: {
     color: '#f8fafc',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   voucherPreviewContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1e293b',
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 10,
+    marginTop: 6,
     borderWidth: 1,
     borderColor: '#10b981',
-    marginBottom: 10,
     gap: 12,
   },
   voucherPreviewImage: {
     width: 60,
-    height: 75,
-    borderRadius: 8,
-    backgroundColor: '#090d16',
+    height: 60,
+    borderRadius: 10,
+    backgroundColor: '#0f172a',
   },
   voucherPreviewInfo: {
     flex: 1,
   },
   voucherAttachedTitle: {
     color: '#34d399',
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '800',
   },
   voucherAttachedSubtitle: {
     color: '#94a3b8',
@@ -820,7 +912,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 8,
+    marginTop: 6,
   },
   removeVoucherText: {
     color: '#ef4444',
@@ -831,18 +923,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1e293b',
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#334155',
-    marginBottom: 10,
     paddingHorizontal: 12,
+    marginBottom: 10,
   },
   inputIcon: {
-    marginRight: 8,
+    marginRight: 10,
   },
   input: {
     flex: 1,
-    height: 46,
+    paddingVertical: 12,
     color: '#f8fafc',
     fontSize: 13,
   },
@@ -851,61 +943,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    padding: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    padding: 12,
+    borderRadius: 12,
     marginBottom: 10,
   },
   errorText: {
     color: '#f87171',
     fontSize: 12,
-    fontWeight: '500',
     flex: 1,
   },
   guaranteeBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-    padding: 10,
-    borderRadius: 10,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.2)',
+    backgroundColor: '#1e293b',
+    padding: 12,
+    borderRadius: 12,
+    marginTop: 6,
   },
   guaranteeText: {
-    flex: 1,
     color: '#94a3b8',
     fontSize: 11,
+    flex: 1,
     lineHeight: 16,
   },
   footer: {
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#1e293b',
   },
   confirmBtn: {
-    backgroundColor: '#10b981',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    backgroundColor: '#10b981',
     paddingVertical: 14,
-    borderRadius: 14,
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    borderRadius: 16,
   },
   confirmBtnDisabled: {
-    opacity: 0.7,
+    opacity: 0.6,
   },
   confirmBtnText: {
-    color: '#0f172a',
-    fontSize: 15,
-    fontWeight: '800',
+    color: '#090d16',
+    fontSize: 14,
+    fontWeight: '900',
   },
 });

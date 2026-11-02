@@ -21,7 +21,8 @@ export interface ReservaData {
   horario: string;
   montoTotal: number;
   estado: 'pendiente' | 'pendiente_validacion' | 'aprobada' | 'rechazada' | 'completada' | string;
-  canchaId?: string;
+  canchaId?: number | string;
+  localId?: number;
   tipoGrass?: string;
   formato?: string;
   metodoPago?: string;

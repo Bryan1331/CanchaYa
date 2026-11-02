@@ -20,21 +20,26 @@ import {
   Sun,
   ShieldCheck,
   Lock,
-  CloudRain,
-  Wrench,
   User,
   History,
-  AlertTriangle,
   LogOut,
+  Star,
+  Info,
+  ChevronRight,
+  Navigation,
+  Sparkles,
 } from 'lucide-react-native';
-import { Cancha, HorarioSlot, TipoGrass, UsuarioCliente } from '../types';
+import { Cancha, HorarioSlot, TipoGrass, UsuarioCliente, ResenaCancha } from '../types';
+import { calcularTarifaDinamica } from '../utils/pricing';
 
 interface HomePublicProps {
   canchas: Cancha[];
+  resenas?: ResenaCancha[];
   usuarioCliente: UsuarioCliente | null;
   isAdmin?: boolean;
   onSelectSlot: (cancha: Cancha, horario: HorarioSlot, fecha: string) => void;
   onRequireAuth: (cancha: Cancha, horario: HorarioSlot, fecha: string) => void;
+  onOpenFichaCancha?: (cancha: Cancha) => void;
   onLogoutCliente?: () => void;
   onOpenAdminLogin?: () => void;
   onOpenAuthModal?: () => void;
@@ -48,17 +53,20 @@ const TIPO_GRASS_TABS: { id: TipoGrass | 'todos'; label: string; iconEmoji: stri
 ];
 
 const DIAS_FILTRO = [
-  { id: 'hoy', label: 'Hoy', fechaStr: 'Hoy, 30 Ago' },
-  { id: 'manana', label: 'Mañana', fechaStr: 'Mañana, 31 Ago' },
-  { id: 'pasado', label: 'Martes', fechaStr: 'Martes, 1 Sep' },
+  { id: 'hoy', label: 'Hoy', fechaStr: 'Hoy, 30 Ago', tipo: 'Día de Semana' },
+  { id: 'manana', label: 'Mañana', fechaStr: 'Mañana, 31 Ago', tipo: 'Día de Semana' },
+  { id: 'sabado', label: 'Sábado', fechaStr: 'Sábado, 2 Sep', tipo: 'Fin de Semana' },
+  { id: 'domingo', label: 'Domingo', fechaStr: 'Domingo, 3 Sep', tipo: 'Fin de Semana' },
 ];
 
 export const HomePublic: React.FC<HomePublicProps> = ({
   canchas,
+  resenas = [],
   usuarioCliente,
   isAdmin = false,
   onSelectSlot,
   onRequireAuth,
+  onOpenFichaCancha,
   onLogoutCliente,
   onOpenAdminLogin,
   onOpenAuthModal,
@@ -71,33 +79,60 @@ export const HomePublic: React.FC<HomePublicProps> = ({
   const [busqueda, setBusqueda] = useState('');
 
   const canchasFiltradas = canchas.filter((cancha) => {
-    const matchGrass = grassActivo === 'todos' || cancha.tipoGrass === grassActivo;
-    const matchTecho = !soloTechadas || cancha.techada;
-    const matchLuz = !soloConLuz || cancha.iluminacion;
+    const grassActual = cancha.tipoGrass || 'sintetico';
+    const matchGrass = grassActivo === 'todos' || grassActual === grassActivo;
+    const matchTecho =
+      !soloTechadas ||
+      Boolean(
+        cancha.techada ??
+          cancha.servicios?.some((s) => s.toLowerCase().includes('tech') || s.toLowerCase().includes('cubiert'))
+      );
+    const matchLuz =
+      !soloConLuz ||
+      Boolean(
+        cancha.iluminacion ??
+          cancha.servicios?.some(
+            (s) =>
+              s.toLowerCase().includes('luz') ||
+              s.toLowerCase().includes('iluminac') ||
+              s.toLowerCase().includes('nocturn')
+          )
+      );
+
+    const busq = busqueda.toLowerCase();
     const matchBusqueda =
-      cancha.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-      cancha.sector.toLowerCase().includes(busqueda.toLowerCase()) ||
-      cancha.ubicacion.toLowerCase().includes(busqueda.toLowerCase()) ||
-      cancha.formato.toLowerCase().includes(busqueda.toLowerCase());
+      (cancha.nombre || '').toLowerCase().includes(busq) ||
+      (cancha.sector || '').toLowerCase().includes(busq) ||
+      (cancha.ubicacion || '').toLowerCase().includes(busq) ||
+      (cancha.direccion || '').toLowerCase().includes(busq) ||
+      (cancha.formato || '').toLowerCase().includes(busq) ||
+      (cancha.establecimiento || '').toLowerCase().includes(busq) ||
+      (cancha.localNombre || '').toLowerCase().includes(busq);
     return matchGrass && matchTecho && matchLuz && matchBusqueda;
   });
 
   const handleSlotClick = (cancha: Cancha, slot: HorarioSlot) => {
-    // Si está ocupado o bloqueado por mantenimiento/lluvia, no permitir acción
     if (!slot.disponible || slot.bloqueado) return;
 
-    // [US-21] Si el usuario no está autenticado, requerir autenticación
+    // [US-16] Aplicar tarifa dinámica calculada al slot
+    const tarifa = calcularTarifaDinamica(cancha, slot, diaSeleccionado.fechaStr);
+    const slotDinamico: HorarioSlot = {
+      ...slot,
+      precio: tarifa.precioTotal,
+      precioDinamico: tarifa.precioTotal,
+    };
+
     if (!usuarioCliente) {
-      onRequireAuth(cancha, slot, diaSeleccionado.fechaStr);
+      onRequireAuth(cancha, slotDinamico, diaSeleccionado.fechaStr);
     } else {
-      onSelectSlot(cancha, slot, diaSeleccionado.fechaStr);
+      onSelectSlot(cancha, slotDinamico, diaSeleccionado.fechaStr);
     }
   };
 
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
-        {/* Barra de Estado de Jugador (No se muestra si el usuario activo es el Administrador) */}
+        {/* Barra de Estado de Jugador */}
         {!isAdmin && usuarioCliente?.rol !== 'admin' && (
           usuarioCliente ? (
             <View style={styles.clientStatusBar}>
@@ -136,7 +171,7 @@ export const HomePublic: React.FC<HomePublicProps> = ({
           ) : (
             <View style={styles.guestNoticeBar}>
               <Text style={styles.guestNoticeText}>
-                👋 Consulta la disponibilidad pública en tiempo real.
+                👋 Grilla pública en vivo con tarifas dinámicas.
               </Text>
               {onOpenAuthModal && (
                 <TouchableOpacity onPress={onOpenAuthModal} style={styles.guestLoginBtn}>
@@ -154,7 +189,6 @@ export const HomePublic: React.FC<HomePublicProps> = ({
               <Text style={styles.cajamarcaTagText}>📍 Cajamarca • Pichangas en Vivo</Text>
             </View>
 
-            {/* Acceso Recepción: se activa ÚNICAMENTE cuando se inicia sesión como Administrador o Recepción */}
             {(isAdmin || usuarioCliente?.rol === 'admin' || usuarioCliente?.rol === 'recepcion') && onOpenAdminLogin && (
               <TouchableOpacity
                 style={styles.adminAccessBadge}
@@ -167,9 +201,9 @@ export const HomePublic: React.FC<HomePublicProps> = ({
             )}
           </View>
 
-          <Text style={styles.heroTitle}>Consulta de Disponibilidad</Text>
+          <Text style={styles.heroTitle}>Reserva tu Cancha Deportiva</Text>
           <Text style={styles.heroSubtitle}>
-            Revisa los horarios libres de las mejores canchas de Cajamarca y aparta tu turno al instante.
+            Ajuste dinámico por franja horaria (día/noche con luz) y fines de semana. Aparta con 50% de adelanto.
           </Text>
         </View>
 
@@ -232,13 +266,13 @@ export const HomePublic: React.FC<HomePublicProps> = ({
           </TouchableOpacity>
         </View>
 
-        {/* Selector de Día */}
+        {/* [US-16] Selector de Día (Día de Semana vs Fin de Semana) */}
         <View style={styles.diaSelectorContainer}>
           <View style={styles.diaHeader}>
             <Calendar size={14} color="#10b981" />
-            <Text style={styles.diaHeaderTitle}>Fecha del turno:</Text>
+            <Text style={styles.diaHeaderTitle}>Fecha del turno (Ajuste dinámico):</Text>
           </View>
-          <View style={styles.diasRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.diasRow}>
             {DIAS_FILTRO.map((dia) => {
               const isSelected = diaSeleccionado.id === dia.id;
               return (
@@ -248,12 +282,15 @@ export const HomePublic: React.FC<HomePublicProps> = ({
                   onPress={() => setDiaSeleccionado(dia)}
                 >
                   <Text style={[styles.diaPillText, isSelected && styles.diaPillTextActive]}>
-                    {dia.label} ({dia.fechaStr.split(',')[1]?.trim()})
+                    {dia.label}
+                  </Text>
+                  <Text style={[styles.diaPillSub, isSelected && styles.diaPillSubActive]}>
+                    {dia.tipo}
                   </Text>
                 </TouchableOpacity>
               );
             })}
-          </View>
+          </ScrollView>
         </View>
 
         {/* Encabezado Lista de Canchas */}
@@ -270,35 +307,71 @@ export const HomePublic: React.FC<HomePublicProps> = ({
           </View>
         ) : (
           canchasFiltradas.map((cancha) => {
-            const primerHorarioLibre = cancha.horarios.find((h) => h.disponible && !h.bloqueado);
+            const primerHorarioLibre = (cancha.horarios || []).find((h) => h.disponible && !h.bloqueado);
+
+            // Recalcular promedio de estrellas si hay reseñas asociadas [US-23]
+            const resenasCancha = resenas.filter((r) => String(r.canchaId) === String(cancha.id));
+            const promedioEstrellas =
+              resenasCancha.length > 0
+                ? (
+                    resenasCancha.reduce((acc, curr) => acc + curr.estrellas, 0) /
+                    resenasCancha.length
+                  ).toFixed(1)
+                : (cancha.calificacionPromedio || cancha.estrellas || 4.8).toFixed(1);
+            const totalResenas = resenasCancha.length > 0 ? resenasCancha.length : (cancha.totalResenas || 20);
+
+            // Dynamic pricing del primer horario libre
+            const tarifaPrimer = primerHorarioLibre
+              ? calcularTarifaDinamica(cancha, primerHorarioLibre, diaSeleccionado.fechaStr)
+              : null;
+
+            const fotoPrincipal = (cancha.imagenes && cancha.imagenes[0]) || cancha.imagenUrl;
+            const formatoTexto = cancha.formato || 'Fútbol 7';
+            const tipoGrassTexto = cancha.tipoGrass === 'natural' ? '🌾 NATURAL' : '🌱 SINTÉTICO';
 
             return (
               <View key={cancha.id} style={styles.canchaCard}>
-                {/* Imagen del Complejo */}
-                <View style={styles.imageContainer}>
-                  <Image source={{ uri: cancha.imagenUrl }} style={styles.canchaImage} />
+                {/* Imagen del Complejo con acceso a Ficha Detallada */}
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  onPress={() => onOpenFichaCancha && onOpenFichaCancha(cancha)}
+                  style={styles.imageContainer}
+                >
+                  <Image source={{ uri: fotoPrincipal }} style={styles.canchaImage} />
 
                   {/* Badge Tipo Grass */}
                   <View
                     style={[
                       styles.grassTag,
-                      cancha.tipoGrass === 'sintetico' ? styles.grassTagSintetico : styles.grassTagNatural,
+                      cancha.tipoGrass === 'natural' ? styles.grassTagNatural : styles.grassTagSintetico,
                     ]}
                   >
                     <Text style={styles.grassTagText}>
-                      {cancha.tipoGrass === 'sintetico' ? '🌱 SINTÉTICO' : '🌾 NATURAL'} • {cancha.formato}
+                      {tipoGrassTexto} • {formatoTexto}
                     </Text>
                   </View>
-                </View>
+
+                  {/* [US-23] Rating Badge de Estrellas */}
+                  <View style={styles.ratingBadgeImage}>
+                    <Star size={11} color="#fbbf24" fill="#fbbf24" />
+                    <Text style={styles.ratingBadgeImageText}>{promedioEstrellas}</Text>
+                    <Text style={styles.ratingBadgeTotalText}>({totalResenas})</Text>
+                  </View>
+                </TouchableOpacity>
 
                 {/* Info Card */}
                 <View style={styles.canchaBody}>
-                  <Text style={styles.canchaName}>{cancha.nombre}</Text>
+                  <View style={styles.titleRatingRow}>
+                    <View style={{ flex: 1, paddingRight: 6 }}>
+                      <Text style={styles.canchaName}>{cancha.establecimiento || cancha.localNombre || cancha.nombre}</Text>
+                      <Text style={styles.canchaLocalSub}>{cancha.nombre}</Text>
+                    </View>
+                  </View>
 
                   <View style={styles.locationRow}>
-                    <MapPin size={14} color="#10b981" />
+                    <MapPin size={13} color="#10b981" />
                     <Text style={styles.locationText} numberOfLines={1}>
-                      {cancha.sector} • {cancha.ubicacion}
+                      {cancha.direccion || `${cancha.sector || ''} • ${cancha.ubicacion || ''}`}
                     </Text>
                   </View>
 
@@ -350,12 +423,29 @@ export const HomePublic: React.FC<HomePublicProps> = ({
                     )}
                   </View>
 
-                  {/* [US-15] Grilla Interactiva de Horarios con Soporte de Bloqueo por Lluvia/Mantenimiento */}
+                  {/* [US-07 / US-18] Botón para ver Ficha Completa (Galería, Servicios y GPS) */}
+                  {onOpenFichaCancha && (
+                    <TouchableOpacity
+                      style={styles.btnVerFicha}
+                      onPress={() => onOpenFichaCancha(cancha)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Info size={13} color="#38bdf8" />
+                        <Text style={styles.btnVerFichaText}>
+                          Ver Galería ({(cancha.imagenes || cancha.galeriaFotos)?.length || 2} fotos), Servicios & GPS
+                        </Text>
+                      </View>
+                      <ChevronRight size={13} color="#38bdf8" />
+                    </TouchableOpacity>
+                  )}
+
+                  {/* [US-16] Grilla Interactiva con Dynamic Pricing recalculado en vivo */}
                   <View style={styles.slotsSection}>
                     <View style={styles.slotsHeaderRow}>
                       <View style={styles.slotsTitleRow}>
                         <Clock size={14} color="#94a3b8" />
-                        <Text style={styles.slotsTitle}>Horarios en tiempo real:</Text>
+                        <Text style={styles.slotsTitle}>Horarios (Tarifa Dinámica):</Text>
                       </View>
                       <View style={styles.legendRow}>
                         <View style={[styles.legendDot, { backgroundColor: '#10b981' }]} />
@@ -368,10 +458,17 @@ export const HomePublic: React.FC<HomePublicProps> = ({
                     </View>
 
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.slotsScroll}>
-                      {cancha.horarios.map((slot) => {
+                      {(cancha.horarios || []).map((slot) => {
                         const isBloqueado = Boolean(slot.bloqueado);
                         const isOcupado = !slot.disponible && !isBloqueado;
                         const isLibre = slot.disponible && !isBloqueado;
+
+                        // [US-16] Cálculo dinámico de tarifa por slot y tipo de día
+                        const tarifaSlot = calcularTarifaDinamica(
+                          cancha,
+                          slot,
+                          diaSeleccionado.fechaStr
+                        );
 
                         return (
                           <TouchableOpacity
@@ -401,7 +498,12 @@ export const HomePublic: React.FC<HomePublicProps> = ({
                             </View>
 
                             {isLibre ? (
-                              <Text style={styles.slotPriceText}>S/ {slot.precio}</Text>
+                              <View style={{ alignItems: 'center' }}>
+                                <Text style={styles.slotPriceText}>S/ {tarifaSlot.precioTotal}</Text>
+                                <Text style={styles.slotAdelantoMini}>
+                                  Adelanto S/ {tarifaSlot.montoAdelanto}
+                                </Text>
+                              </View>
                             ) : isBloqueado ? (
                               <View style={styles.slotBloqueoReasonBadge}>
                                 <Text style={styles.slotBloqueoReasonText} numberOfLines={1}>
@@ -417,15 +519,15 @@ export const HomePublic: React.FC<HomePublicProps> = ({
                     </ScrollView>
                   </View>
 
-                  {/* Botón de Acción Rápida */}
-                  {primerHorarioLibre && (
+                  {/* Botón de Acción Rápida con Precio Dinámico */}
+                  {primerHorarioLibre && tarifaPrimer && (
                     <TouchableOpacity
                       style={styles.bookActionBtn}
                       onPress={() => handleSlotClick(cancha, primerHorarioLibre)}
                       activeOpacity={0.8}
                     >
                       <Text style={styles.bookActionBtnText}>
-                        Apartar {primerHorarioLibre.horaInicio} (S/ {primerHorarioLibre.precio})
+                        Apartar {primerHorarioLibre.horaInicio} (Total S/ {tarifaPrimer.precioTotal} • Adelanto S/ {tarifaPrimer.montoAdelanto})
                       </Text>
                       <CheckCircle2 size={16} color="#090d16" />
                     </TouchableOpacity>
@@ -453,12 +555,12 @@ const styles = StyleSheet.create({
   },
   clientStatusBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: '#1e293b',
     borderRadius: 14,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#334155',
@@ -467,11 +569,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1,
   },
   clientAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -483,13 +586,11 @@ const styles = StyleSheet.create({
   misPichangasBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    paddingHorizontal: 10,
+    gap: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    paddingHorizontal: 8,
     paddingVertical: 5,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
   misPichangasBtnText: {
     color: '#34d399',
@@ -500,12 +601,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    paddingHorizontal: 10,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    paddingHorizontal: 8,
     paddingVertical: 5,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
   },
   clientLogoutBarBtnText: {
     color: '#f87171',
@@ -514,72 +613,66 @@ const styles = StyleSheet.create({
   },
   guestNoticeBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'rgba(56, 189, 248, 0.08)',
-    borderRadius: 12,
+    justifyContent: 'space-between',
+    backgroundColor: '#1e293b',
+    borderRadius: 14,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.2)',
+    borderColor: '#334155',
   },
   guestNoticeText: {
     color: '#94a3b8',
-    fontSize: 11,
+    fontSize: 12,
     flex: 1,
+    marginRight: 8,
   },
   guestLoginBtn: {
-    backgroundColor: '#38bdf8',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginLeft: 8,
+    backgroundColor: '#10b981',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
   guestLoginBtnText: {
     color: '#090d16',
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   heroCard: {
-    backgroundColor: '#111827',
-    borderRadius: 20,
-    padding: 18,
+    backgroundColor: '#1e293b',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#1f2937',
-    marginBottom: 16,
+    borderColor: '#334155',
   },
   heroTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
-    flexWrap: 'wrap',
-    gap: 8,
+    marginBottom: 8,
   },
   cajamarcaTag: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    backgroundColor: '#0f172a',
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   cajamarcaTagText: {
-    color: '#34d399',
-    fontSize: 12,
+    color: '#10b981',
+    fontSize: 11,
     fontWeight: '700',
   },
   adminAccessBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.3)',
+    gap: 4,
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   adminAccessBadgeText: {
     color: '#38bdf8',
@@ -587,37 +680,37 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   heroTitle: {
-    color: '#f9fafb',
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#f8fafc',
     marginBottom: 4,
   },
   heroSubtitle: {
-    color: '#9ca3af',
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    color: '#94a3b8',
+    lineHeight: 17,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#111827',
+    backgroundColor: '#1e293b',
     borderRadius: 14,
+    paddingHorizontal: 12,
+    height: 44,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#1f2937',
-    paddingHorizontal: 14,
-    height: 48,
-    marginBottom: 14,
+    borderColor: '#334155',
   },
   searchInput: {
     flex: 1,
-    color: '#f3f4f6',
-    fontSize: 14,
-    marginLeft: 10,
+    color: '#f8fafc',
+    fontSize: 13,
+    marginLeft: 8,
   },
   clearSearchText: {
     color: '#10b981',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   grassTabsContainer: {
     flexDirection: 'row',
@@ -629,29 +722,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#111827',
+    gap: 6,
+    backgroundColor: '#1e293b',
     paddingVertical: 9,
-    paddingHorizontal: 6,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#1f2937',
-    gap: 4,
+    borderColor: '#334155',
   },
   grassTabBtnActive: {
-    backgroundColor: '#064e3b',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
     borderColor: '#10b981',
   },
   grassTabEmoji: {
-    fontSize: 12,
+    fontSize: 13,
   },
   grassTabText: {
-    color: '#9ca3af',
+    color: '#94a3b8',
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   grassTabTextActive: {
     color: '#34d399',
-    fontWeight: '700',
   },
   togglesRow: {
     flexDirection: 'row',
@@ -659,37 +750,35 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   togglePill: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#111827',
-    paddingVertical: 8,
+    backgroundColor: '#1e293b',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#1f2937',
+    borderColor: '#334155',
   },
   togglePillActive: {
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
     borderColor: '#10b981',
   },
   togglePillText: {
-    color: '#9ca3af',
-    fontSize: 12,
+    color: '#94a3b8',
+    fontSize: 11,
     fontWeight: '600',
   },
   togglePillTextActive: {
     color: '#34d399',
-    fontWeight: '700',
   },
   diaSelectorContainer: {
-    backgroundColor: '#111827',
-    borderRadius: 14,
+    backgroundColor: '#1e293b',
+    borderRadius: 16,
     padding: 12,
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#1f2937',
-    marginBottom: 16,
+    borderColor: '#334155',
   },
   diaHeader: {
     flexDirection: 'row',
@@ -698,110 +787,164 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   diaHeaderTitle: {
-    color: '#9ca3af',
+    color: '#cbd5e1',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   diasRow: {
     flexDirection: 'row',
-    gap: 8,
   },
   diaPill: {
-    flex: 1,
-    alignItems: 'center',
+    backgroundColor: '#0f172a',
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#1f2937',
+    borderRadius: 10,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
   },
   diaPillActive: {
-    backgroundColor: '#10b981',
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderColor: '#10b981',
   },
   diaPillText: {
-    color: '#9ca3af',
+    color: '#cbd5e1',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   diaPillTextActive: {
-    color: '#090d16',
-    fontWeight: '700',
+    color: '#34d399',
+  },
+  diaPillSub: {
+    color: '#64748b',
+    fontSize: 9,
+    marginTop: 2,
+  },
+  diaPillSubActive: {
+    color: '#10b981',
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: 12,
+    alignItems: 'center',
+    marginBottom: 10,
   },
   sectionTitle: {
-    color: '#f9fafb',
+    color: '#f8fafc',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '900',
   },
   sectionSubtitle: {
-    color: '#6b7280',
+    color: '#64748b',
+    fontSize: 12,
+  },
+  emptyContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    color: '#f8fafc',
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  emptySubtitle: {
+    color: '#64748b',
     fontSize: 12,
   },
   canchaCard: {
-    backgroundColor: '#111827',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#1f2937',
-    marginBottom: 18,
+    backgroundColor: '#1e293b',
+    borderRadius: 20,
     overflow: 'hidden',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#334155',
   },
   imageContainer: {
-    height: 150,
     position: 'relative',
-    backgroundColor: '#1f2937',
+    height: 170,
+    width: '100%',
   },
   canchaImage: {
     width: '100%',
     height: '100%',
+    resizeMode: 'cover',
   },
   grassTag: {
     position: 'absolute',
     bottom: 10,
     left: 10,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 8,
   },
   grassTagSintetico: {
-    backgroundColor: '#10b981',
+    backgroundColor: 'rgba(16, 185, 129, 0.9)',
   },
   grassTagNatural: {
-    backgroundColor: '#15803d',
+    backgroundColor: 'rgba(59, 130, 246, 0.9)',
   },
   grassTagText: {
     color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  ratingBadgeImage: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  ratingBadgeImageText: {
+    color: '#fbbf24',
     fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 0.5,
+  },
+  ratingBadgeTotalText: {
+    color: '#94a3b8',
+    fontSize: 9,
   },
   canchaBody: {
-    padding: 16,
+    padding: 14,
+  },
+  titleRatingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 2,
   },
   canchaName: {
+    color: '#f8fafc',
     fontSize: 16,
+    fontWeight: '900',
+  },
+  canchaLocalSub: {
+    color: '#10b981',
+    fontSize: 11,
     fontWeight: '700',
-    color: '#f9fafb',
-    marginBottom: 4,
+    marginTop: 1,
   },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 10,
+    gap: 4,
+    marginVertical: 4,
   },
   locationText: {
-    color: '#9ca3af',
-    fontSize: 12,
-    flex: 1,
+    color: '#94a3b8',
+    fontSize: 11,
   },
   keyBadgesRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 6,
-    marginBottom: 12,
+    marginTop: 6,
+    marginBottom: 8,
   },
   featureBadge: {
     flexDirection: 'row',
@@ -810,39 +953,49 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
+    backgroundColor: '#0f172a',
   },
   featureBadgeActive: {
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
   },
   featureBadgeNeutral: {
-    backgroundColor: '#1f2937',
-    borderWidth: 1,
-    borderColor: '#374151',
+    backgroundColor: '#0f172a',
   },
   featureBadgeTextActive: {
     color: '#34d399',
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '700',
   },
   featureBadgeTextNeutral: {
     color: '#94a3b8',
+    fontSize: 10,
+  },
+  btnVerFicha: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0f172a',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+    marginVertical: 6,
+  },
+  btnVerFichaText: {
+    color: '#38bdf8',
     fontSize: 11,
+    fontWeight: '700',
   },
   slotsSection: {
-    backgroundColor: '#090d16',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#1f2937',
-    marginBottom: 12,
+    marginTop: 6,
+    marginBottom: 10,
   },
   slotsHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   slotsTitleRow: {
     flexDirection: 'row',
@@ -851,8 +1004,8 @@ const styles = StyleSheet.create({
   },
   slotsTitle: {
     color: '#cbd5e1',
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
   },
   legendRow: {
     flexDirection: 'row',
@@ -862,134 +1015,87 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    marginRight: 4,
   },
   legendText: {
-    color: '#6b7280',
-    fontSize: 10,
+    color: '#64748b',
+    fontSize: 9,
+    marginLeft: 3,
   },
   slotsScroll: {
-    marginHorizontal: -4,
+    flexDirection: 'row',
   },
   slotCard: {
-    backgroundColor: '#111827',
-    borderWidth: 1,
-    borderColor: '#10b981',
+    backgroundColor: '#0f172a',
     borderRadius: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 8,
-    marginHorizontal: 4,
+    marginRight: 6,
+    borderWidth: 1,
+    borderColor: '#334155',
     alignItems: 'center',
-    minWidth: 92,
+    minWidth: 84,
   },
   slotCardOcupado: {
-    backgroundColor: '#1f2937',
-    borderColor: '#27272a',
-    opacity: 0.5,
+    opacity: 0.45,
+    backgroundColor: '#0b1120',
   },
   slotCardBloqueado: {
-    backgroundColor: '#1e293b',
-    borderColor: '#475569',
-    opacity: 0.65,
+    borderColor: '#f59e0b',
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
   },
   slotTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 2,
+    marginBottom: 3,
   },
   slotTimeText: {
-    color: '#e5e7eb',
-    fontSize: 12,
-    fontWeight: '700',
+    color: '#f8fafc',
+    fontSize: 11,
+    fontWeight: '800',
   },
   slotTimeTextOcupado: {
-    color: '#6b7280',
-    fontWeight: '500',
+    color: '#64748b',
   },
   slotTimeTextBloqueado: {
-    color: '#94a3b8',
-    fontWeight: '600',
+    color: '#fbbf24',
   },
   slotPriceText: {
-    color: '#34d399',
-    fontSize: 11,
+    color: '#10b981',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  slotAdelantoMini: {
+    color: '#64748b',
+    fontSize: 8,
+    marginTop: 1,
+  },
+  slotBloqueoReasonBadge: {
+    backgroundColor: '#78350f',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  slotBloqueoReasonText: {
+    color: '#fde68a',
+    fontSize: 8,
     fontWeight: '700',
   },
   slotPriceTextOcupado: {
-    color: '#4b5563',
-    fontSize: 11,
-  },
-  slotBloqueoReasonBadge: {
-    backgroundColor: '#334155',
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginTop: 2,
-    maxWidth: 96,
-  },
-  slotBloqueoReasonText: {
-    color: '#e2e8f0',
-    fontSize: 9,
-    fontWeight: '700',
-    textAlign: 'center',
+    color: '#64748b',
+    fontSize: 10,
   },
   bookActionBtn: {
-    backgroundColor: '#10b981',
-    paddingVertical: 11,
-    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
+    backgroundColor: '#10b981',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
   },
   bookActionBtnText: {
     color: '#090d16',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  emptyContainer: {
-    backgroundColor: '#111827',
-    padding: 30,
-    borderRadius: 16,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  emptyTitle: {
-    color: '#f9fafb',
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  emptySubtitle: {
-    color: '#6b7280',
-    fontSize: 13,
-    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '900',
   },
 });
-
-/*import React from 'react';
-import { View, Text, Button, FlatList } from 'react-native';
-
-const canchasBonitas = ['Opción 1', 'Opción 2', 'Opción 3', 'Opción 4'];
-
-export const ListaScreen = ({ onVolver }: { onVolver: () => void }) => {
-  return (
-    <View style={{ flex: 1, padding: 20 }}>
-      <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 10 }}>
-        Canchas Bonitas
-      </Text>
-
-      <FlatList
-        data={canchasBonitas}
-        keyExtractor={(item) => item}
-        renderItem={({ item }) => (
-          <Text style={{ fontSize: 16, marginVertical: 8 }}>• {item}</Text>
-        )}
-      />
-
-      <Button title="Volver al Inicio" onPress={onVolver} />
-    </View>
-  );
-};*/
-

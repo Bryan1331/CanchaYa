@@ -6,19 +6,19 @@ import {
   Modal,
   TouchableOpacity,
   ScrollView,
-  Image,
 } from 'react-native';
 import {
   X,
   Calendar,
   Clock,
-  MapPin,
   CheckCircle2,
   AlertCircle,
   XCircle,
   FileText,
   User,
   LogOut,
+  Star,
+  Sparkles,
 } from 'lucide-react-native';
 import { Reserva, UsuarioCliente } from '../types';
 
@@ -28,6 +28,7 @@ interface MisPichangasModalProps {
   usuarioCliente: UsuarioCliente | null;
   reservas: Reserva[];
   onLogout?: () => void;
+  onAbrirCalificar?: (reserva: Reserva) => void;
 }
 
 export const MisPichangasModal: React.FC<MisPichangasModalProps> = ({
@@ -36,6 +37,7 @@ export const MisPichangasModal: React.FC<MisPichangasModalProps> = ({
   usuarioCliente,
   reservas,
   onLogout,
+  onAbrirCalificar,
 }) => {
   if (!usuarioCliente) return null;
 
@@ -104,10 +106,14 @@ export const MisPichangasModal: React.FC<MisPichangasModalProps> = ({
               </View>
             ) : (
               misReservas.map((reserva) => {
+                const isCompletada = reserva.estado === 'completada';
                 const isAprobada = reserva.estado === 'aprobada';
                 const isPendiente =
                   reserva.estado === 'pendiente' || reserva.estado === 'pendiente_validacion';
                 const isRechazada = reserva.estado === 'rechazada';
+
+                const adelanto = reserva.montoAdelanto ?? Math.round(reserva.monto * 0.5);
+                const saldo = reserva.saldoPendiente ?? (reserva.monto - adelanto);
 
                 return (
                   <View key={reserva.id} style={styles.reservaCard}>
@@ -122,26 +128,31 @@ export const MisPichangasModal: React.FC<MisPichangasModalProps> = ({
                       <View
                         style={[
                           styles.estadoBadge,
+                          isCompletada && styles.estadoBadgeCompletada,
                           isAprobada && styles.estadoBadgeAprobada,
                           isPendiente && styles.estadoBadgePendiente,
                           isRechazada && styles.estadoBadgeRechazada,
                         ]}
                       >
+                        {isCompletada && <Sparkles size={12} color="#a855f7" />}
                         {isAprobada && <CheckCircle2 size={12} color="#10b981" />}
                         {isPendiente && <AlertCircle size={12} color="#f59e0b" />}
                         {isRechazada && <XCircle size={12} color="#ef4444" />}
                         <Text
                           style={[
                             styles.estadoText,
+                            isCompletada && styles.estadoTextCompletada,
                             isAprobada && styles.estadoTextAprobada,
                             isPendiente && styles.estadoTextPendiente,
                             isRechazada && styles.estadoTextRechazada,
                           ]}
                         >
-                          {isAprobada
-                            ? 'Aprobada'
+                          {isCompletada
+                            ? 'Pichanga Jugada'
+                            : isAprobada
+                            ? 'Confirmada'
                             : isPendiente
-                            ? 'Pendiente de Validación'
+                            ? 'Pendiente Validación'
                             : 'Rechazada'}
                         </Text>
                       </View>
@@ -159,19 +170,59 @@ export const MisPichangasModal: React.FC<MisPichangasModalProps> = ({
                       </View>
                     </View>
 
-                    {/* Bottom Row: Monto y Comprobante info */}
-                    <View style={styles.reservaBottomRow}>
-                      <View>
-                        <Text style={styles.montoLabel}>Total pagado / acordado:</Text>
-                        <Text style={styles.montoText}>S/ {reserva.monto}.00</Text>
+                    {/* Desglose Financiero */}
+                    <View style={styles.pricingBreakdownBox}>
+                      <View style={styles.pricingBreakdownCol}>
+                        <Text style={styles.pricingBreakdownLabel}>Monto Total:</Text>
+                        <Text style={styles.pricingBreakdownValue}>S/ {reserva.monto}.00</Text>
                       </View>
+                      <View style={styles.pricingBreakdownCol}>
+                        <Text style={styles.pricingBreakdownLabel}>Adelanto Validado:</Text>
+                        <Text style={[styles.pricingBreakdownValue, { color: '#34d399' }]}>
+                          S/ {adelanto}.00
+                        </Text>
+                      </View>
+                      <View style={styles.pricingBreakdownCol}>
+                        <Text style={styles.pricingBreakdownLabel}>Saldo en Cancha:</Text>
+                        <Text style={[styles.pricingBreakdownValue, { color: '#cbd5e1' }]}>
+                          S/ {saldo}.00
+                        </Text>
+                      </View>
+                    </View>
 
+                    {/* Bottom Row: [US-23] Botón Calificar post-pichanga sólo si estado === 'completada' */}
+                    <View style={styles.reservaBottomRow}>
                       {reserva.comprobanteUrl ? (
                         <View style={styles.voucherPill}>
                           <FileText size={12} color="#10b981" />
-                          <Text style={styles.voucherPillText}>Comprobante Adjunto</Text>
+                          <Text style={styles.voucherPillText}>Adelanto Adjunto</Text>
                         </View>
-                      ) : null}
+                      ) : (
+                        <View />
+                      )}
+
+                      {/* [US-23] Calificación: solo para reservas completadas */}
+                      {isCompletada && (
+                        reserva.calificado ? (
+                          <View style={styles.calificadoBadge}>
+                            <Star size={12} color="#fbbf24" fill="#fbbf24" />
+                            <Text style={styles.calificadoBadgeText}>
+                              {reserva.calificacion?.estrellas || 5} ★ Calificado
+                            </Text>
+                          </View>
+                        ) : (
+                          onAbrirCalificar && (
+                            <TouchableOpacity
+                              style={styles.calificarBtn}
+                              onPress={() => onAbrirCalificar(reserva)}
+                              activeOpacity={0.8}
+                            >
+                              <Star size={13} color="#090d16" fill="#090d16" />
+                              <Text style={styles.calificarBtnText}>Calificar Pichanga</Text>
+                            </TouchableOpacity>
+                          )
+                        )
+                      )}
                     </View>
                   </View>
                 );
@@ -242,9 +293,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   userAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -252,7 +303,7 @@ const styles = StyleSheet.create({
   userName: {
     color: '#f8fafc',
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   userMeta: {
     color: '#94a3b8',
@@ -260,12 +311,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   countBadge: {
-    backgroundColor: '#064e3b',
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#10b981',
   },
   countBadgeText: {
     color: '#34d399',
@@ -276,12 +325,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
   },
   modalLogoutBtnText: {
     color: '#f87171',
@@ -290,35 +337,31 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 10,
   },
   emptyContainer: {
-    backgroundColor: '#1e293b',
-    padding: 30,
-    borderRadius: 16,
+    paddingVertical: 50,
     alignItems: 'center',
-    marginTop: 10,
   },
   emptyTitle: {
     color: '#f8fafc',
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
     marginBottom: 6,
-    textAlign: 'center',
   },
   emptySubtitle: {
     color: '#94a3b8',
     fontSize: 12,
     textAlign: 'center',
+    paddingHorizontal: 30,
     lineHeight: 18,
   },
   reservaCard: {
-    backgroundColor: '#111827',
+    backgroundColor: '#1e293b',
     borderRadius: 16,
-    padding: 14,
+    padding: 16,
+    marginTop: 12,
     borderWidth: 1,
-    borderColor: '#1f2937',
-    marginBottom: 12,
+    borderColor: '#334155',
   },
   reservaTopRow: {
     flexDirection: 'row',
@@ -327,41 +370,41 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   canchaNombre: {
-    color: '#f9fafb',
-    fontSize: 14,
-    fontWeight: '700',
+    color: '#f8fafc',
+    fontSize: 15,
+    fontWeight: '800',
   },
   formatoText: {
-    color: '#9ca3af',
-    fontSize: 11,
+    color: '#94a3b8',
+    fontSize: 12,
     marginTop: 2,
   },
   estadoBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
   },
+  estadoBadgeCompletada: {
+    backgroundColor: 'rgba(168, 85, 247, 0.2)',
+  },
   estadoBadgeAprobada: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
   },
   estadoBadgePendiente: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
   },
   estadoBadgeRechazada: {
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
   },
   estadoText: {
     fontSize: 11,
     fontWeight: '700',
+  },
+  estadoTextCompletada: {
+    color: '#c084fc',
   },
   estadoTextAprobada: {
     color: '#34d399',
@@ -373,11 +416,12 @@ const styles = StyleSheet.create({
     color: '#f87171',
   },
   detailsBox: {
-    backgroundColor: '#090d16',
-    borderRadius: 10,
+    flexDirection: 'row',
+    gap: 16,
+    backgroundColor: '#0f172a',
     padding: 10,
+    borderRadius: 10,
     marginBottom: 10,
-    gap: 6,
   },
   detailRow: {
     flexDirection: 'row',
@@ -385,38 +429,81 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   detailText: {
-    color: '#cbd5e1',
+    color: '#e2e8f0',
     fontSize: 12,
+    fontWeight: '600',
+  },
+  pricingBreakdownBox: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: '#0f172a',
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  pricingBreakdownCol: {
+    alignItems: 'center',
+  },
+  pricingBreakdownLabel: {
+    color: '#94a3b8',
+    fontSize: 10,
+    marginBottom: 2,
+  },
+  pricingBreakdownValue: {
+    color: '#f8fafc',
+    fontSize: 12,
+    fontWeight: '800',
   },
   reservaBottomRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#1f2937',
-    paddingTop: 10,
-  },
-  montoLabel: {
-    color: '#94a3b8',
-    fontSize: 10,
-  },
-  montoText: {
-    color: '#34d399',
-    fontSize: 14,
-    fontWeight: '800',
+    borderTopColor: '#334155',
   },
   voucherPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
     backgroundColor: 'rgba(16, 185, 129, 0.1)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
   voucherPillText: {
-    color: '#34d399',
+    color: '#10b981',
     fontSize: 11,
     fontWeight: '600',
+  },
+  calificarBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#fbbf24',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  calificarBtnText: {
+    color: '#090d16',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  calificadoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(251, 191, 36, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  calificadoBadgeText: {
+    color: '#fbbf24',
+    fontSize: 11,
+    fontWeight: '800',
   },
 });

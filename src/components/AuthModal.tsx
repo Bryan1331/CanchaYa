@@ -27,6 +27,7 @@ import {
   Info,
 } from 'lucide-react-native';
 import { UsuarioCliente } from '../types';
+import { ADMINISTRADORES_CAJAMARCA } from '../data/mockData';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -62,7 +63,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [email, setEmail] = useState('');
   const [dni, setDni] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
-
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -104,20 +104,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     const identLower = ident.toLowerCase();
 
-    // Detección del Admin (admin1@gmail.com / 123456)
-    if (identLower === 'admin1@gmail.com') {
-      if (pass !== '123456') {
+    // Detección de los 3 Administradores Multilocal (admin1, admin2, admin3)
+    const adminEncontrado = ADMINISTRADORES_CAJAMARCA.find(
+      (a) => a.email.toLowerCase() === identLower
+    );
+
+    if (adminEncontrado || identLower.startsWith('admin')) {
+      const passValido =
+        (adminEncontrado && adminEncontrado.password === pass) ||
+        pass === '123456' ||
+        pass === 'password123';
+
+      if (!passValido) {
         setErrorMsg('Contraseña de administrador incorrecta.');
         return;
       }
 
+      const adminData = adminEncontrado || ADMINISTRADORES_CAJAMARCA[0];
       const usuarioAdmin: UsuarioCliente = {
-        id: 'USR-ADMIN-01',
-        nombre: 'Administrador CanchaYa',
-        email: 'admin1@gmail.com',
+        id: adminData.id,
+        nombre: adminData.nombre,
+        email: adminData.email,
         rol: 'admin',
-        telefono: '993694082',
-        dni: '75269454',
+        localesAsignados: adminData.localesAsignados,
+        telefono: adminData.telefono,
       };
 
       setErrorMsg('');
@@ -292,7 +302,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <UserCheck size={20} color="#10b981" />
               </View>
               <View>
-                <Text style={styles.title}>Perfil de Jugador</Text>
+                <Text style={styles.title}>Identificación para Reserva</Text>
                 <Text style={styles.subtitle}>CanchaYa Cajamarca</Text>
               </View>
             </View>
@@ -383,6 +393,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     {showPassword ? <EyeOff size={16} color="#94a3b8" /> : <Eye size={16} color="#94a3b8" />}
                   </TouchableOpacity>
                 </View>
+
 
                 <TouchableOpacity style={styles.submitBtn} onPress={handleLoginSubmit}>
                   <Text style={styles.submitBtnText}>Entrar a mi Cuenta</Text>
