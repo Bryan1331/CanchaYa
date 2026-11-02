@@ -337,7 +337,11 @@ export const HomePublic: React.FC<HomePublicProps> = ({
                   onPress={() => onOpenFichaCancha && onOpenFichaCancha(cancha)}
                   style={styles.imageContainer}
                 >
-                  <Image source={{ uri: fotoPrincipal }} style={styles.canchaImage} />
+                  <Image
+                    source={{ uri: cancha.imagenes[0] }}
+                    style={{ width: '100%', height: 180 }}
+                    resizeMode="cover"
+                  />
 
                   {/* Badge Tipo Grass */}
                   <View
@@ -862,12 +866,15 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     position: 'relative',
-    height: 170,
+    height: 180,
     width: '100%',
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   canchaImage: {
     width: '100%',
-    height: '100%',
+    height: 180,
+    borderRadius: 12,
     resizeMode: 'cover',
   },
   grassTag: {
@@ -920,15 +927,15 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   canchaName: {
-    color: '#f8fafc',
-    fontSize: 16,
-    fontWeight: '900',
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   canchaLocalSub: {
-    color: '#10b981',
-    fontSize: 11,
-    fontWeight: '700',
-    marginTop: 1,
+    color: '#9CA3AF',
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 2,
   },
   locationRow: {
     flexDirection: 'row',

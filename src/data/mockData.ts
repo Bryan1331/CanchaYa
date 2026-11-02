@@ -10,109 +10,112 @@ import { Cancha, Reserva, ResenaCancha, HorarioSlot, AdminUser } from '../types'
 export const CANCHAS_CAJAMARCA: Cancha[] = [
   {
     id: 1,
-    nombre: 'Cancha Principal (Fútbol 7)',
-    establecimiento: 'Grass El Chugurano',
-    direccion: 'Jr. Manuel Seoane 780, Cajamarca',
+    establecimiento: "Grass El Chugurano",
+    nombre: "Cancha Principal (Fútbol 7)",
+    direccion: "Jr. Manuel Seoane 780, Cajamarca",
     precioDia: 50,
     precioNoche: 80,
-    coordenadas: { lat: -7.1612, lng: -78.5134 },
-    servicios: ['Iluminación LED', 'Vestuarios', 'Bar / Snacks', 'Zona de espera'],
+    coordenadas: { lat: -7.1565262706758555, lng: -78.50773630346525 },
+    servicios: ["Iluminación LED", "Vestuarios", "Bar / Snacks", "Zona de espera"],
     imagenes: [
-      'https://images.unsplash.com/photo-1574629810360-7efbbe195018?q=80&w=800',
+      "https://images.unsplash.com/photo-1574629810360-7efbbe195018?q=80&w=800",
+      "https://images.unsplash.com/photo-1529900748604-07564a03e7a6?q=80&w=800"
     ],
     estrellas: 4.7,
-    totalResenas: 28,
+    totalResenas: 28
   },
   {
     id: 2,
-    nombre: 'Campo Central',
-    establecimiento: 'Allianz Arena Soccer',
-    direccion: 'Jr. Cinco Esquinas N° 1502, Cajamarca',
+    establecimiento: "Allianz Arena Soccer",
+    nombre: "Campo Central",
+    direccion: "Jr. Cinco Esquinas N° 1502, Cajamarca",
     precioDia: 60,
     precioNoche: 90,
-    coordenadas: { lat: -7.1645, lng: -78.5098 },
-    servicios: ['Iluminación Nocturna', 'Vestuarios', 'Estacionamiento', 'Tribuna'],
+    coordenadas: { lat: -7.153166, lng: -78.508025 },
+    servicios: ["Iluminación Nocturna", "Vestuarios", "Estacionamiento", "Tribuna"],
     imagenes: [
-      'https://images.unsplash.com/photo-1551958219-acbc608c6377?q=80&w=800',
+      "https://images.unsplash.com/photo-1551958219-acbc608c6377?q=80&w=800",
+      "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?q=80&w=800"
     ],
     estrellas: 4.8,
-    totalResenas: 42,
+    totalResenas: 42
   },
   {
     id: 3,
-    nombre: 'Cancha 1 Sintética',
-    establecimiento: 'CAMPO REAL',
-    direccion: 'C. El Jardín, Cajamarca',
+    establecimiento: "Grass sintético CAMPO REAL",
+    nombre: "Cancha 1 Sintética",
+    direccion: "C. El Jardín, Cajamarca",
     precioDia: 55,
     precioNoche: 85,
-    coordenadas: { lat: -7.1472, lng: -78.5085 },
-    servicios: ['Atención 24 horas', 'Iluminación LED', 'Estacionamiento', 'Cafetería'],
+    coordenadas: { lat: -7.1344722692222495, lng: -78.5112134667093 },
+    servicios: ["Atención 24 horas", "Iluminación LED", "Estacionamiento", "Cafetería"],
     imagenes: [
-      'https://images.unsplash.com/photo-1518091043644-c1d4457512c6?q=80&w=800',
+      "https://images.unsplash.com/photo-1518091043644-c1d4457512c6?q=80&w=800",
+      "https://images.unsplash.com/photo-1574629810360-7efbbe195018?q=80&w=800"
     ],
     estrellas: 4.6,
-    totalResenas: 35,
+    totalResenas: 35
   },
   {
     id: 4,
-    nombre: 'Cancha Oficial',
-    establecimiento: 'EL DORADO',
-    direccion: 'Sin Número, Cajamarca',
+    establecimiento: "Gras Sintético EL DORADO",
+    nombre: "Cancha Oficial",
+    direccion: "Sin Número, Cajamarca",
     precioDia: 50,
     precioNoche: 75,
-    coordenadas: { lat: -7.155, lng: -78.512 },
-    servicios: ['Iluminación Nocturna', 'Bancas cubiertas', 'Estacionamiento'],
+    coordenadas: { lat: -7.14206320331177, lng: -78.51879454950812 },
+    servicios: ["Iluminación Nocturna", "Bancas cubiertas", "Estacionamiento"],
     imagenes: [
-      'https://images.unsplash.com/photo-1459865264668-b25873140a32?q=80&w=800',
+      "https://images.unsplash.com/photo-1459865264668-b25873140a32?q=80&w=800"
     ],
     estrellas: 4.5,
-    totalResenas: 19,
+    totalResenas: 19
   },
   {
     id: 5,
-    nombre: 'Cancha Nocturna',
-    establecimiento: 'Grass Sintético Rabanal',
-    direccion: 'Av. Vía de Evitamiento Sur (espaldas del Imperio Gym), Cajamarca',
+    establecimiento: "Grass Sintetico Rabanal",
+    nombre: "Cancha Nocturna",
+    direccion: "Av. Vía de Evitamiento Sur, Cajamarca",
     precioDia: 50,
     precioNoche: 80,
-    coordenadas: { lat: -7.168, lng: -78.505 },
-    servicios: ['Iluminación Artificial', 'Servicios Higiénicos', 'Atención Continua'],
+    coordenadas: { lat: -7.157907263590015, lng: -78.50591864052942 },
+    servicios: ["Iluminación Artificial", "Servicios Higiénicos", "Atención Continua"],
     imagenes: [
-      'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?q=80&w=800',
+      "https://images.unsplash.com/photo-1529900748604-07564a03e7a6?q=80&w=800"
     ],
     estrellas: 4.4,
-    totalResenas: 15,
+    totalResenas: 15
   },
   {
     id: 6,
-    nombre: 'Cancha Principal',
-    establecimiento: 'Grass La Cantera',
-    direccion: 'Av. Hoyos Rubio (cerca al Quinde), Cajamarca',
+    establecimiento: "Grass sintético la Cantera",
+    nombre: "Cancha Principal",
+    direccion: "Av. Hoyos Rubio, Cajamarca",
     precioDia: 60,
     precioNoche: 90,
-    coordenadas: { lat: -7.152, lng: -78.506 },
-    servicios: ['Iluminación LED pro', 'Estacionamiento privado', 'Vestuarios', 'Snack Bar'],
+    coordenadas: { lat: -7.146238019507803, lng: -78.50016099023435 },
+    servicios: ["Iluminación LED pro", "Estacionamiento privado", "Vestuarios", "Snack Bar"],
     imagenes: [
-      'https://images.unsplash.com/photo-1574629810360-7efbbe195018?q=80&w=800',
+      "https://images.unsplash.com/photo-1574629810360-7efbbe195018?q=80&w=800"
     ],
     estrellas: 4.9,
-    totalResenas: 50,
+    totalResenas: 50
   },
   {
     id: 7,
-    nombre: 'Campo Tradicional',
-    establecimiento: 'Complejo San Martín',
-    direccion: 'Av. San Martín, Cajamarca',
+    establecimiento: "Complejo El Golazo",
+    nombre: "Campo Tradicional",
+    direccion: "Cajamarca",
     precioDia: 50,
     precioNoche: 75,
-    coordenadas: { lat: -7.159, lng: -78.515 },
-    servicios: ['Iluminación Nocturna', 'Gradas para público', 'Canchas múltiples'],
+    coordenadas: { lat: -7.174570155991962, lng: -78.48750328881287 },
+    servicios: ["Iluminación Nocturna", "Gradas para público", "Canchas múltiples"],
     imagenes: [
-      'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?q=80&w=800',
+      "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?q=80&w=800"
     ],
     estrellas: 4.3,
-    totalResenas: 12,
-  },
+    totalResenas: 12
+  }
 ];
 
 /**
@@ -120,9 +123,9 @@ export const CANCHAS_CAJAMARCA: Cancha[] = [
  * 2. CONTROL DE ACCESO MULTILOCAL PARA 3 ADMINISTRADORES (FASE T3)
  * =========================================================================
  * Distribución de los 7 locales entre los 3 administradores encargados:
- * - Admin 1: Locales [1, 2, 3] (Chugurano, Allianz Arena, Campo Real)
- * - Admin 2: Locales [4, 5] (El Dorado, Rabanal)
- * - Admin 3: Locales [6, 7] (La Cantera, San Martín)
+ * - Admin 1: Locales [1, 2, 3] (Chugurano, Allianz Arena, Campo Real) - 3 canchas
+ * - Admin 2: Locales [4, 5, 6] (El Dorado, Rabanal, La Cantera) - 3 canchas
+ * - Admin 3: Local [7] (Complejo El Golazo) - 1 cancha
  */
 export const ADMINISTRADORES_CAJAMARCA: AdminUser[] = [
   {
@@ -139,7 +142,7 @@ export const ADMINISTRADORES_CAJAMARCA: AdminUser[] = [
     email: 'admin2@gmail.com',
     password: 'password123',
     nombre: 'Jhony Rabanal',
-    cargo: 'Supervisor Multilocal Sur (El Dorado / Rabanal)',
+    cargo: 'Supervisor Multilocal Sur/Este (El Dorado / Rabanal / La Cantera)',
     localesAsignados: [4, 5, 6],
     telefono: '942819302',
   },
@@ -148,7 +151,7 @@ export const ADMINISTRADORES_CAJAMARCA: AdminUser[] = [
     email: 'admin3@gmail.com',
     password: 'password123',
     nombre: 'Manuel Pajares',
-    cargo: 'Supervisor Multilocal Este/Norte (La Cantera / San Martín)',
+    cargo: 'Supervisor Complejo El Golazo',
     localesAsignados: [7],
     telefono: '988341205',
   },
@@ -383,7 +386,7 @@ export const INITIAL_RESERVAS: Reserva[] = [
     id: 'RES-8908',
     localId: 7,
     canchaId: 7,
-    canchaNombre: 'Campo Tradicional - Complejo Deportivo San Martín',
+    canchaNombre: 'Campo Tradicional - Complejo El Golazo',
     tipoGrass: 'natural',
     formato: 'Fútbol 7',
     clienteNombre: 'David Terrones Aliaga',

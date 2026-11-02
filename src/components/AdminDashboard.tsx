@@ -103,10 +103,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [bloqueoSlotId, setBloqueoSlotId] = useState<string>('');
   const [bloqueoMotivo, setBloqueoMotivo] = useState<string>('Lluvia');
 
+  // [US-24] Locales asignados efectivos (desde adminActual o props)
+  const localesAdmin = adminActual?.localesAsignados ?? localesAsignados;
+
   // [US-24] Filtrar canchas autorizadas según localesAsignados
   const canchasAutorizadas = canchas.filter((c) => {
     const locId = c.localId ?? c.id;
-    return localesAsignados.includes(locId);
+    return localesAdmin.includes(c.id) || localesAdmin.includes(locId);
   });
 
   // Canchas visibles según local seleccionado
@@ -131,7 +134,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const canchaObj = canchas.find((c) => String(c.id) === String(r.canchaId));
     const localId = r.localId || (canchaObj ? (canchaObj.localId ?? canchaObj.id) : 1);
 
-    if (!localesAsignados.includes(localId)) return false;
+    if (!localesAdmin.includes(localId)) return false;
     if (localSeleccionado !== 'todos') return localId === localSeleccionado;
     return true;
   });
@@ -444,7 +447,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             reservas={reservasAutorizadas}
             canchas={canchasAutorizadas}
             localSeleccionadoId={localSeleccionado}
-            localesAsignados={localesAsignados}
+            localesAsignados={localesAdmin}
           />
         ) : (
           /* PESTAÑA 1: Cuadro Diario y Operaciones */

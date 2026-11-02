@@ -75,21 +75,8 @@ export const FichaCanchaModal: React.FC<FichaCanchaModalProps> = ({
       : [cancha.imagenUrl || 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?q=80&w=800'];
 
   // [US-18] Botón "Cómo llegar" a Google Maps
-  const handleComoLlegar = async () => {
-    const { lat, lng } = cancha.coordenadas || { lat: -7.1612, lng: -78.5134 };
-    const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-
-    try {
-      const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert('Navegación GPS', `Coordenadas: ${lat}, ${lng}\nAbre Google Maps para llegar.`);
-      }
-    } catch (err) {
-      console.warn('Error al abrir Google Maps:', err);
-      Alert.alert('Error', 'No se pudo abrir Google Maps en este dispositivo.');
-    }
+  const handleComoLlegar = () => {
+    Linking.openURL('https://www.google.com/maps/search/?api=1&query=' + cancha.coordenadas.lat + ',' + cancha.coordenadas.lng);
   };
 
   const primerHorarioLibre = (cancha.horarios || []).find((h) => h.disponible && !h.bloqueado);
@@ -101,13 +88,10 @@ export const FichaCanchaModal: React.FC<FichaCanchaModalProps> = ({
           {/* Header Superior */}
           <View style={styles.header}>
             <View style={{ flex: 1, paddingRight: 12 }}>
-              <View style={styles.localBadgeRow}>
-                <Building size={12} color="#10b981" />
-                <Text style={styles.localBadgeText} numberOfLines={1}>
-                  {cancha.establecimiento || cancha.localNombre}
-                </Text>
-              </View>
               <Text style={styles.headerTitle} numberOfLines={1}>
+                {cancha.establecimiento || cancha.localNombre}
+              </Text>
+              <Text style={styles.headerSubtitle} numberOfLines={1}>
                 {cancha.nombre}
               </Text>
             </View>
@@ -378,9 +362,14 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   headerTitle: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: '#f8fafc',
+    fontSize: 19,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    marginTop: 2,
   },
   closeBtn: {
     width: 36,
